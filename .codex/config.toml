@@ -1,0 +1,62 @@
+# Codex workspace configuration
+# Deployed to: .codex/config.toml
+# Additive - do not remove Copilot workspace instructions.
+
+# Project instruction discovery.
+# Fallbacks are only used when AGENTS.md is missing.
+project_doc_fallback_filenames = [
+    "instructions.md",
+    "INSTRUCTIONS.md",
+    "copilot-instructions.md",
+    "TEAM_GUIDE.md",
+    ".agents.md",
+]
+project_doc_max_bytes = 131072
+
+project_root_markers = [".git", ".hg", ".sl"]
+
+# Safety baseline.
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+network_access = false
+
+# MCP parity with existing Copilot user-level stack.
+[mcp_servers.supabase]
+url = "https://mcp.supabase.com/mcp"
+
+[mcp_servers.context7]
+command = "npx"
+args = ["-y", "@upstash/context7-mcp@latest"]
+
+[mcp_servers.repomix]
+command = "npx"
+args = ["-y", "repomix@latest", "--mcp"]
+
+[mcp_servers.figma]
+url = "https://mcp.figma.com/mcp"
+
+[mcp_servers.cloudflare]
+url = "https://mcp.cloudflare.com/mcp"
+
+[mcp_servers.gitnexus]
+command = "C:\\Users\\longv\\AppData\\Roaming\\npm\\gitnexus.cmd"
+args = ["mcp"]
+
+# Resolved from local user-level Codex/MCP config during sync (2026-05-01).
+[mcp_servers.pencil]
+command = "C:\\Users\\longv\\.pencil\\mcp\\visual_studio_code\\out\\mcp-server-windows-x64.exe"
+args = ["--app", "visual_studio_code"]
+
+# Resolved from local Obsidian vault policy during sync (2026-05-01).
+[mcp_servers.obsidian]
+command = "npx"
+args = ["-y", "@bitbonsai/mcpvault@latest", "C:\\Users\\longv\\Desktop\\VT"]
+
+[mcp_servers.vercel]
+url = "https://mcp.vercel.com"
+
+# Codex hooks are disabled on Windows per official Codex docs.
+[features]
+codex_hooks = false

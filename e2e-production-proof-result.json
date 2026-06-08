@@ -1,0 +1,24 @@
+{
+  "startedAt": "2026-04-08T22:04:08.825Z",
+  "base": "https://project-entag-3d-viewer-70p2fzxfd-citizendevio.vercel.app",
+  "modelUrl": "https://e799e59cf1a17ec1dc9aca7d16738397.cdn.bubble.io/f1775667672430x287967715949301700/cutting-blade-1-k110-1.STEP",
+  "maxPolls": 60,
+  "pollMs": 15000,
+  "upload": {
+    "status": 401,
+    "ok": false
+  },
+  "polls": [],
+  "acceptance": {
+    "viewerSuccess": false,
+    "quoteTerminal": false,
+    "quoteSuccess": false,
+    "quoteFreshUpload": false,
+    "uploadIdsPresent": false,
+    "priceTweakRouteOk": false
+  },
+  "tweak": null,
+  "viewerProof": null,
+  "completedAt": null,
+  "verdict": "FAIL_UPLOAD"
+}

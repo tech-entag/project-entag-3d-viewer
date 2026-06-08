@@ -1,0 +1,20 @@
+{
+  "ok": true,
+  "status": 200,
+  "data": {
+    "success": true,
+    "viewer": {
+      "status": "success",
+      "priority": true,
+      "mode": "cloud",
+      "localModelUrl": null,
+      "localError": "Failed to persist local viewer bubble. Vercel Blob: Access denied, please provide a valid token for this resource."
+    },
+    "quote": {
+      "status": "not_required",
+      "targetFormat": null,
+      "error": null,
+      "upload": null
+    }
+  }
+}

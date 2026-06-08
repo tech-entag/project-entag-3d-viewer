@@ -1,0 +1,40 @@
+{
+  "startedAt": "2026-05-06T18:34:58.932Z",
+  "base": "https://project-entag-3d-viewer.vercel.app",
+  "modelUrl": "https://e799e59cf1a17ec1dc9aca7d16738397.cdn.bubble.io/f1775554802869x303260948826025400/chair_extension_v3.step",
+  "steps": {
+    "auth": {
+      "pass": true,
+      "status": 200
+    },
+    "upload": {
+      "pass": true,
+      "status": 200,
+      "urn": "dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6MTc3ODA5MjUwMT...",
+      "sourceFormat": "step",
+      "viewerStatus": "queued",
+      "quoteStatus": "not_required"
+    },
+    "viewer": {
+      "pass": true,
+      "mode": "local",
+      "localModelUrl": "https://myk7onojdk1izpvf.public.blob.vercel-storage.com/viewer-bubbles/ZFhKdU9tR...",
+      "isLocal": true
+    },
+    "digifabster": {
+      "pass": false,
+      "objectModelId": null,
+      "orderId": null,
+      "sessionId": null,
+      "quoteStatus": "failed",
+      "uploadStatus": "cached"
+    },
+    "priceTweak": {
+      "pass": false,
+      "skipped": true,
+      "reason": "no objectModelId"
+    }
+  },
+  "verdict": "FAIL",
+  "completedAt": "2026-05-06T18:35:31.666Z"
+}

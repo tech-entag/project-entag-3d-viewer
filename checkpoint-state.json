@@ -1,0 +1,53 @@
+{
+  "base": "https://project-entag-3d-viewer-70p2fzxfd-citizendevio.vercel.app",
+  "bypass": "qlQfStfLPXLfXBliB9xoS9FQFjMxys1V",
+  "modelUrl": "https://project-entag-3d-viewer-70p2fzxfd-citizendevio.vercel.app/test-fixtures/cutting-blade-1-k110-1.STEP",
+  "client_id": "8BXWyVK8APFGrEXNW4zZHNma3jl8KZyyWbc5Vlfz3quHMMAf",
+  "client_secret": "FRZilSQSMAjEb8Zta6CFDbQGuOzHwoFHKlWYB4JwozzGbr1H7JaFKovPTILPUHGd",
+  "startedAt": "2026-04-08T22:07:58.266Z",
+  "steps": {
+    "auth": {
+      "status": 200,
+      "ok": true,
+      "contentType": "text/html; charset=utf-8",
+      "mechanism": "x-vercel-protection-bypass header"
+    },
+    "upload": {
+      "status": 200,
+      "ok": true,
+      "urn": "dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6MTc3NTY4NjA4OD...",
+      "sourceFormat": "step",
+      "viewer": {
+        "status": "queued",
+        "priority": true
+      },
+      "quote": {
+        "status": "not_required",
+        "targetFormat": null,
+        "reason": "Source format is already Digifabster-compatible.",
+        "error": null
+      }
+    },
+    "viewer": {
+      "status": "success",
+      "mode": "cloud",
+      "localModelUrl": null,
+      "localError": "Failed to persist local viewer bubble. Vercel Blob: Access denied, please provide a valid token for this resource."
+    },
+    "quote": {
+      "status": "not_required",
+      "reason": "File is Digifabster-native — no conversion needed",
+      "upload": null
+    },
+    "priceTweak": {
+      "getOk": false,
+      "postOk": null
+    }
+  },
+  "urn": "dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6MTc3NTY4NjA4ODEyNS9jdXR0aW5nLWJsYWRlLTEtazExMC0xLlNURVA",
+  "partId": "e2e-checkpoint-1775686085379",
+  "quoteTarget": null,
+  "accessToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6IlZiakZvUzhQU3lYODQyMV95dndvRUdRdFJEa19SUzI1NiIsInBpLmF0bSI6ImFzc2MifQ.eyJzY29wZSI6WyJjb2RlOmFsbCIsImRhdGE6d3JpdGUiLCJkYXRhOnJlYWQiLCJkYXRhOmNyZWF0ZSIsImJ1Y2tldDpjcmVhdGUiLCJidWNrZXQ6ZGVsZXRlIiwiYnVja2V0OnJlYWQiLCJ2aWV3YWJsZXM6cmVhZCJdLCJjbGllbnRfaWQiOiI4QlhXeVZLOEFQRkdyRVhOVzR6WkhObWEzamw4S1p5eVdiYzVWbGZ6M3F1SE1NQWYiLCJpc3MiOiJodHRwczovL2RldmVsb3Blci5hcGkuYXV0b2Rlc2suY29tIiwiYXVkIjoiaHR0cHM6Ly9hdXRvZGVzay5jb20iLCJqdGkiOiJId2RaUDdsWGlxVnN4UUpza2lvMXVtV3dRRHNQYUR4VDdreHBRUkZxMG01MmtUeFdYWVhNWUxKYm95UlllbXYxIiwiZXhwIjoxNzc1Njg5Njg4fQ.PwTJFYKLEF-HNuxUJH32nLC1srUyxBCaEula_eIu9nWugkmYrZclTiin6DJUe0Zpt6tGhLWfJQRsy0I8fbOmSj5NZQhhiDtJQdpErpEV-yJpet_5ySbH3z1RD_4ySTjflIt4aJV_7mXYgWOcftSFTeviNqcwQitt-i6rz7chp2q7sKOY2eWiYFcGntIh6ANfqEz_gWVqksyy_i0CtI302I2r3jLv7ZfwOOLr2qk6KiAZcKeqSaOLyE8HyeZbzj0jkTPg_OgdhdY4IgTLPqu9xtFqBcyxd87otuvpwsBqtgF-wBiy72__1Ou_id-Mq7cUaTQGtK4V9vLc1hgMVhbXqw",
+  "verdict": "FAIL",
+  "completedAt": "2026-04-08T22:08:24.560Z"
+}

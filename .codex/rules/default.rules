@@ -1,0 +1,23 @@
+# Codex command policy scaffold
+# Deployed to: .codex/rules/default.rules
+
+# Prompt before force push.
+prefix_rule(
+    pattern = ["git", "push", "--force"],
+    decision = "prompt",
+    justification = "Force push can rewrite remote history.",
+)
+
+# Prompt before recursive deletion.
+prefix_rule(
+    pattern = ["rm", "-rf"],
+    decision = "prompt",
+    justification = "Recursive deletion is destructive.",
+)
+
+# Prompt before dangerous SQL drops.
+prefix_rule(
+    pattern = ["psql", "-c", "DROP"],
+    decision = "prompt",
+    justification = "DROP operations should be manually reviewed.",
+)

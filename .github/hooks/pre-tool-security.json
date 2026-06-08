@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "type": "command",
+        "command": "node ~/.copilot/hooks/scripts/pre-tool-security.cjs",
+        "windows": "node %USERPROFILE%\\.copilot\\hooks\\scripts\\pre-tool-security.cjs",
+        "timeout": 10
+      }
+    ]
+  }
+}

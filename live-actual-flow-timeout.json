@@ -1,0 +1,358 @@
+{
+  "upload": {
+    "ok": true,
+    "status": 200,
+    "text": "{\"success\":true,\"urn\":\"dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6MTc3NTU4NzA5NzA4My9TYW1iYSUyNTIwRGFuY2luZy5mYng\",\"accessToken\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6IlZiakZvUzhQU3lYODQyMV95dndvRUdRdFJEa19SUzI1NiIsInBpLmF0bSI6ImFzc2MifQ.eyJzY29wZSI6WyJjb2RlOmFsbCIsImRhdGE6d3JpdGUiLCJkYXRhOnJlYWQiLCJkYXRhOmNyZWF0ZSIsImJ1Y2tldDpjcmVhdGUiLCJidWNrZXQ6ZGVsZXRlIiwiYnVja2V0OnJlYWQiLCJ2aWV3YWJsZXM6cmVhZCJdLCJjbGllbnRfaWQiOiJrRHhnM0J5emRNUFc0eFpDNmRHcDJhVHFCNHJDUmlET1c1UjJxamJEblB3YUtiSzkiLCJpc3MiOiJodHRwczovL2RldmVsb3Blci5hcGkuYXV0b2Rlc2suY29tIiwiYXVkIjoiaHR0cHM6Ly9hdXRvZGVzay5jb20iLCJqdGkiOiJ5S1BzOEVtb2QwTnB1Zk85cjhBYklhSTZQZHFCUWZWSk9nVXFxbXVHbWl5ZjNJdmRZSEFUYlNodzhDVVFTblBTIiwiZXhwIjoxNzc1NTkwNjk3fQ.Pdw2DAP5TA4ZAnNgXuSAapQjymEh8dwM-70TFE5PkHbzcAES56Kp9wOwoJTatZkHZ2xRLDEmMx4zXjaKtylLGcxZHsnO12j_5DOkSPY9rf2478LeGPLdy6M8sUGI_O33v81PQjxFYfI7Ytf_Tg74Mrm-vtDAZXeQwvmwY6DIWI8IWgXNACFyU-lbo5Y4noCOnStMFpktE1emA6JVYiCRe2VxggXlr1Yn_RtbgFvgEGvCabjcpyYthz77yEdMeDKN2q15gJseLJOJBOvxsawldCqW-ugBjnMQFnzbntiOMLcHpfBYWdJGGrX0oKOPsG0wUH4smiHBr55E-c29Jktftw\",\"bucketKey\":\"1775587097083\",\"objectKey\":\"Samba%20Dancing.fbx\",\"sourceFormat\":\"fbx\",\"viewer\":{\"status\":\"queued\",\"priority\":true},\"quote\":{\"status\":\"queued\",\"targetFormat\":\"step\",\"reason\":\"Direct STEP conversion is supported in short-scope mode.\",\"error\":null},\"planRef\":\"/memories/session/plan.md\"}",
+    "data": {
+      "success": true,
+      "urn": "dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6MTc3NTU4NzA5NzA4My9TYW1iYSUyNTIwRGFuY2luZy5mYng",
+      "accessToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6IlZiakZvUzhQU3lYODQyMV95dndvRUdRdFJEa19SUzI1NiIsInBpLmF0bSI6ImFzc2MifQ.eyJzY29wZSI6WyJjb2RlOmFsbCIsImRhdGE6d3JpdGUiLCJkYXRhOnJlYWQiLCJkYXRhOmNyZWF0ZSIsImJ1Y2tldDpjcmVhdGUiLCJidWNrZXQ6ZGVsZXRlIiwiYnVja2V0OnJlYWQiLCJ2aWV3YWJsZXM6cmVhZCJdLCJjbGllbnRfaWQiOiJrRHhnM0J5emRNUFc0eFpDNmRHcDJhVHFCNHJDUmlET1c1UjJxamJEblB3YUtiSzkiLCJpc3MiOiJodHRwczovL2RldmVsb3Blci5hcGkuYXV0b2Rlc2suY29tIiwiYXVkIjoiaHR0cHM6Ly9hdXRvZGVzay5jb20iLCJqdGkiOiJ5S1BzOEVtb2QwTnB1Zk85cjhBYklhSTZQZHFCUWZWSk9nVXFxbXVHbWl5ZjNJdmRZSEFUYlNodzhDVVFTblBTIiwiZXhwIjoxNzc1NTkwNjk3fQ.Pdw2DAP5TA4ZAnNgXuSAapQjymEh8dwM-70TFE5PkHbzcAES56Kp9wOwoJTatZkHZ2xRLDEmMx4zXjaKtylLGcxZHsnO12j_5DOkSPY9rf2478LeGPLdy6M8sUGI_O33v81PQjxFYfI7Ytf_Tg74Mrm-vtDAZXeQwvmwY6DIWI8IWgXNACFyU-lbo5Y4noCOnStMFpktE1emA6JVYiCRe2VxggXlr1Yn_RtbgFvgEGvCabjcpyYthz77yEdMeDKN2q15gJseLJOJBOvxsawldCqW-ugBjnMQFnzbntiOMLcHpfBYWdJGGrX0oKOPsG0wUH4smiHBr55E-c29Jktftw",
+      "bucketKey": "1775587097083",
+      "objectKey": "Samba%20Dancing.fbx",
+      "sourceFormat": "fbx",
+      "viewer": {
+        "status": "queued",
+        "priority": true
+      },
+      "quote": {
+        "status": "queued",
+        "targetFormat": "step",
+        "reason": "Direct STEP conversion is supported in short-scope mode.",
+        "error": null
+      },
+      "planRef": "/memories/session/plan.md"
+    }
+  },
+  "polls": [
+    {
+      "poll": 1,
+      "http": 200,
+      "viewerStatus": "inprogress",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 2,
+      "http": 200,
+      "viewerStatus": "inprogress",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 3,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 4,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 5,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 6,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 7,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 8,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 9,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 10,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 11,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 12,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 13,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 14,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 15,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 16,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 17,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 18,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 19,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 20,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 21,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 22,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 23,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 24,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 25,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 26,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 27,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 28,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 29,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    },
+    {
+      "poll": 30,
+      "http": 200,
+      "viewerStatus": "success",
+      "viewerMode": "cloud",
+      "quoteStatus": "queued",
+      "quoteTarget": "step",
+      "uploadStatus": null,
+      "objectModelId": null,
+      "orderId": null
+    }
+  ]
+}

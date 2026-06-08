@@ -1,0 +1,16 @@
+{
+  "status": "pass",
+  "fixturePath": "C:\\Users\\longv\\Desktop\\entag-3d-viewer\\project-entag-3d-viewer\\public\\test-fixtures\\nesting-sample-plate.dxf",
+  "responseStatus": 200,
+  "traceId": "nesting-mor2o96l-r9w9ix",
+  "partsPlaced": 12,
+  "perSheetCapacity": 6,
+  "sheetCount": 2,
+  "rotationDeg": 0,
+  "nestedEntityCount": 41,
+  "outputBytes": 52677,
+  "warnings": [
+    "BLOB_READ_WRITE_TOKEN is missing, nested file URL was not generated."
+  ],
+  "timestamp": "2026-05-04T10:44:23.823Z"
+}

@@ -1,0 +1,56 @@
+{
+  "timestamp": "2026-05-04T10:38:58.735Z",
+  "baseUrl": "https://project-entag-3d-viewer-f42meab3z-citizendevio.vercel.app",
+  "endpoint": "/api/sheet-nesting",
+  "status": 200,
+  "ok": true,
+  "requestSummary": {
+    "source_file_name": "nesting-sample-plate.dxf",
+    "quantity": 14,
+    "spacing": 5,
+    "sheet_width": 320,
+    "sheet_height": 220,
+    "sync_digifabster": false,
+    "dxf_length": 2806
+  },
+  "response": {
+    "success": true,
+    "traceId": "nesting-mor2haj8-xruehp",
+    "source": {
+      "fileName": "nesting-sample-plate.dxf",
+      "sourceUrl": null
+    },
+    "sheet": {
+      "width": 320,
+      "height": 220,
+      "source": "request",
+      "technologySlug": "3-axis-milling",
+      "machineId": null,
+      "materialId": null
+    },
+    "nesting": {
+      "engine": "single-part-grid-v1",
+      "rotationDeg": 0,
+      "partWidth": 120,
+      "partHeight": 60,
+      "quantityRequested": 14,
+      "partsPlaced": 14,
+      "perSheetCapacity": 6,
+      "sheetCount": 3,
+      "spacing": 5,
+      "inputEntityCount": 3,
+      "supportedEntityCount": 3,
+      "unsupportedEntityCount": 0
+    },
+    "output": {
+      "fileName": "nesting-sample-plate-nested-1777891139000.dxf",
+      "fileUrl": "https://myk7onojdk1izpvf.public.blob.vercel-storage.com/sheet-nesting/m7gqrm/nesting-sample-plate-nested-1777891139000.dxf",
+      "bytes": 61156
+    },
+    "digifabsterUpload": {
+      "status": "skipped",
+      "reason": "sync_disabled"
+    },
+    "warnings": []
+  }
+}

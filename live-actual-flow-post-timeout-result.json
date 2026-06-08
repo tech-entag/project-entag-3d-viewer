@@ -1,0 +1,39 @@
+{
+  "urn": "dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6MTc3NTU4NzA5NzA4My9TYW1iYSUyNTIwRGFuY2luZy5mYng",
+  "sourceFormat": "fbx",
+  "quoteTarget": "step",
+  "quoteStatusAtTimeout": "queued",
+  "viewerProof": {
+    "url": "https://project-entag-3d-viewer-ie0jyc9ck-citizendevio.vercel.app/viewer?access_token=eyJhbGciOiJSUzI1NiIsImtpZCI6IlZiakZvUzhQU3lYODQyMV95dndvRUdRdFJEa19SUzI1NiIsInBpLmF0bSI6ImFzc2MifQ.eyJzY29wZSI6WyJjb2RlOmFsbCIsImRhdGE6d3JpdGUiLCJkYXRhOnJlYWQiLCJkYXRhOmNyZWF0ZSIsImJ1Y2tldDpjcmVhdGUiLCJidWNrZXQ6ZGVsZXRlIiwiYnVja2V0OnJlYWQiLCJ2aWV3YWJsZXM6cmVhZCJdLCJjbGllbnRfaWQiOiJrRHhnM0J5emRNUFc0eFpDNmRHcDJhVHFCNHJDUmlET1c1UjJxamJEblB3YUtiSzkiLCJpc3MiOiJodHRwczovL2RldmVsb3Blci5hcGkuYXV0b2Rlc2suY29tIiwiYXVkIjoiaHR0cHM6Ly9hdXRvZGVzay5jb20iLCJqdGkiOiJ5S1BzOEVtb2QwTnB1Zk85cjhBYklhSTZQZHFCUWZWSk9nVXFxbXVHbWl5ZjNJdmRZSEFUYlNodzhDVVFTblBTIiwiZXhwIjoxNzc1NTkwNjk3fQ.Pdw2DAP5TA4ZAnNgXuSAapQjymEh8dwM-70TFE5PkHbzcAES56Kp9wOwoJTatZkHZ2xRLDEmMx4zXjaKtylLGcxZHsnO12j_5DOkSPY9rf2478LeGPLdy6M8sUGI_O33v81PQjxFYfI7Ytf_Tg74Mrm-vtDAZXeQwvmwY6DIWI8IWgXNACFyU-lbo5Y4noCOnStMFpktE1emA6JVYiCRe2VxggXlr1Yn_RtbgFvgEGvCabjcpyYthz77yEdMeDKN2q15gJseLJOJBOvxsawldCqW-ugBjnMQFnzbntiOMLcHpfBYWdJGGrX0oKOPsG0wUH4smiHBr55E-c29Jktftw&urn=dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6MTc3NTU4NzA5NzA4My9TYW1iYSUyNTIwRGFuY2luZy5mYng",
+    "canvasCount": 1,
+    "modalError": 0,
+    "failedRequests": [],
+    "badResponses": [
+      {
+        "url": "https://cdn.derivative.autodesk.com/derivativeservice/v2/derivatives/urn%3Aadsk.viewing%3Afs.file%3AdXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6MTc3NTU4NzA5NzA4My9TYW1iYSUyNTIwRGFuY2luZy5mYng%2Foutput%2F1%2FSamba%20Dancing.svf?domain=https%3A%2F%2Fproject-entag-3d-viewer-ie0jyc9ck-citizendevio.vercel.app",
+        "status": 404
+      }
+    ],
+    "screenshot": "live-cloud-viewer-proof.png"
+  },
+  "tweakResults": [
+    {
+      "case": 1,
+      "status": 404,
+      "ok": false,
+      "body": "The page could not be found\n\nNOT_FOUND\n\nhkg1::4v4pb-1775587507790-b8aa962a1d17\n"
+    },
+    {
+      "case": 2,
+      "status": 404,
+      "ok": false,
+      "body": "The page could not be found\n\nNOT_FOUND\n\nhkg1::4v4pb-1775587507882-3f12df648011\n"
+    },
+    {
+      "case": 3,
+      "status": 404,
+      "ok": false,
+      "body": "The page could not be found\n\nNOT_FOUND\n\nhkg1::4v4pb-1775587507963-cd990124843b\n"
+    }
+  ]
+}

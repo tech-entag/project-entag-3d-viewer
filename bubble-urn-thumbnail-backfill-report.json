@@ -1,0 +1,25 @@
+{
+  "startedAt": "2026-05-14T14:25:04.143Z",
+  "baseUrl": "https://project-entag-3d-viewer.vercel.app",
+  "bubbleBase": "https://app.entag.co/api/1.1/obj",
+  "bubbleVersion": "live",
+  "dryRun": true,
+  "include3mf": false,
+  "windowLabel": "last_7_days",
+  "windowStart": "2026-05-07T14:25:02.825Z",
+  "recordsInWindow": 24,
+  "missingUrnAndImage": 0,
+  "missingUrnWithImage": 0,
+  "includeMissingUrnWithImage": true,
+  "queued": 0,
+  "summary": {
+    "total": 0,
+    "updated": 0,
+    "failed": 0,
+    "skipped": 0,
+    "dryRun": 0
+  },
+  "byExtension": {},
+  "results": [],
+  "completedAt": "2026-05-14T14:25:04.143Z"
+}

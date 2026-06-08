@@ -1,0 +1,14 @@
+{
+  "urn": "dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6MTc3NTU2ODA1MDYxMC9zbG90dGVkX2Rpc2suc3Rs",
+  "localModelUrl": "https://myk7onojdk1izpvf.public.blob.vercel-storage.com/viewer-bubbles/ZFhKdU9tRmtjMnN1YjJKcVpXTjBjenB2Y3k1dlltcGxZM1E2TVRjM05UVTJPREExTURZeE1DOXpiRzkwZEdWa1gyUnBjMnN1YzNScw/output/1/slotted_disk.svf",
+  "viewer": {
+    "status": "success",
+    "priority": true,
+    "mode": "local",
+    "localModelUrl": "https://myk7onojdk1izpvf.public.blob.vercel-storage.com/viewer-bubbles/ZFhKdU9tRmtjMnN1YjJKcVpXTjBjenB2Y3k1dlltcGxZM1E2TVRjM05UVTJPREExTURZeE1DOXpiRzkwZEdWa1gyUnBjMnN1YzNScw/output/1/slotted_disk.svf",
+    "localError": null
+  },
+  "canvasCount": 2,
+  "modalError": 0,
+  "screenshot": "live-local-viewer-proof.png"
+}
