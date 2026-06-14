@@ -106,7 +106,7 @@ export async function GET(req: Request) {
       if (persisted.status === "blob_unavailable") {
         return json(
           {
-            error: "BLOB_READ_WRITE_TOKEN is not configured. Local viewer source cannot be persisted.",
+            error: "Object storage (R2) is not configured. Local viewer source cannot be persisted.",
             status: "unavailable",
           },
           503

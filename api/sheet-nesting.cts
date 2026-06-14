@@ -1,4 +1,4 @@
-import { put } from "@vercel/blob";
+import { hasStorage, putObject } from "./embed_helpers/blob-storage";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
@@ -818,28 +818,22 @@ export async function POST(req: Request) {
     const nestedFileName = normalizeDxfFileName(`${sourceBaseName}-nested-${Date.now()}.dxf`);
 
     let nestedFileUrl: string | null = null;
-    const blobToken = process.env.BLOB_READ_WRITE_TOKEN?.trim() || "";
 
-    if (!dryRun && blobToken) {
+    if (!dryRun && hasStorage()) {
       try {
         const sourceSignature = simpleHash(`${sourceUrl || "inline"}|${sourceFileName}|${quantity}`);
         const blobPath = `sheet-nesting/${sourceSignature}/${nestedFileName}`;
-        const uploaded = await put(blobPath, nestedDxf, {
-          access: "public",
-          contentType: "application/dxf",
-          addRandomSuffix: false,
-          token: blobToken,
-        });
+        const uploaded = await putObject(blobPath, nestedDxf, "application/dxf");
         nestedFileUrl = uploaded.url;
       } catch (error) {
         warnings.push(
           error instanceof Error
-            ? `Blob upload failed: ${error.message}`
-            : "Blob upload failed.",
+            ? `Storage upload failed: ${error.message}`
+            : "Storage upload failed.",
         );
       }
-    } else if (!blobToken) {
-      warnings.push("BLOB_READ_WRITE_TOKEN is missing, nested file URL was not generated.");
+    } else if (!hasStorage()) {
+      warnings.push("Object storage (R2) is not configured, nested file URL was not generated.");
     }
 
     const partId = pickString(body.part_id, body.partId);

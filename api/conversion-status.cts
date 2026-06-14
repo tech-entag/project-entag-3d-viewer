@@ -390,7 +390,7 @@ export async function POST(req: Request) {
           });
 
           if (persisted.status === "blob_unavailable") {
-            viewerLocalError = "BLOB_READ_WRITE_TOKEN is not configured. Local URN playback is unavailable.";
+            viewerLocalError = "Object storage (R2) is not configured. Local URN playback is unavailable.";
             logStep(traceId, "viewer.local_cache.persist.blob_unavailable");
           }
         } catch (persistError) {

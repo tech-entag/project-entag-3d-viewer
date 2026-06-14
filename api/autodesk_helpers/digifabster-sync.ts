@@ -1,5 +1,6 @@
-import { list, put } from "@vercel/blob";
 import { extname, posix as pathPosix } from "node:path";
+
+import { getObjectText, hasStorage, putObject } from "../embed_helpers/blob-storage";
 
 import {
   downloadDerivativeFile,
@@ -246,10 +247,6 @@ const buildDigifabsterDirectHeaders = (): Record<string, string> => {
   return headers;
 };
 
-const getBlobToken = () => process.env.BLOB_READ_WRITE_TOKEN || "";
-
-const hasBlobToken = () => Boolean(getBlobToken());
-
 const toUrnKey = (urn: string) => Buffer.from(urn).toString("base64url");
 
 const toSyncKey = (urn: string, quoteTarget: SyncChannel, partId: string, version: string) =>
@@ -287,17 +284,13 @@ export const getPriceTweakerCache = async (
   machineId: number,
   materialId: number,
 ): Promise<PriceTweakerCacheRecord | null> => {
-  if (!hasBlobToken()) return null;
+  if (!hasStorage()) return null;
 
   const key = priceCacheKey(techSlug, machineId, materialId);
   try {
-    const items = await list({ prefix: key, token: getBlobToken(), limit: 1 });
-    const blob = items.blobs[0];
-    if (!blob) return null;
-
-    const res = await fetch(blob.url);
-    if (!res.ok) return null;
-    const record = (await res.json()) as PriceTweakerCacheRecord;
+    const text = await getObjectText(key);
+    if (text === null) return null;
+    const record = JSON.parse(text) as PriceTweakerCacheRecord;
 
     const ttl = parsePositiveInt(process.env.PRICE_CACHE_TTL_MS, DEFAULT_PRICE_CACHE_TTL_MS);
     if (Date.now() - new Date(record.storedAt).getTime() > ttl) return null;
@@ -309,16 +302,11 @@ export const getPriceTweakerCache = async (
 };
 
 export const putPriceTweakerCache = async (record: PriceTweakerCacheRecord): Promise<void> => {
-  if (!hasBlobToken()) return;
+  if (!hasStorage()) return;
 
   const key = priceCacheKey(record.technologySlug, record.machineId, record.materialId);
   try {
-    await put(key, JSON.stringify(record), {
-      access: "public",
-      contentType: "application/json",
-      addRandomSuffix: false,
-      token: getBlobToken(),
-    });
+    await putObject(key, JSON.stringify(record), "application/json");
   } catch {
     /* cache write failure is non-fatal */
   }
@@ -547,48 +535,34 @@ const getSyncRecord = async (
   partId: string,
   version: string
 ): Promise<DigifabsterUploadRecord | null> => {
-  if (!hasBlobToken()) {
+  if (!hasStorage()) {
     return null;
   }
 
   try {
-    const token = getBlobToken();
     const pathname = syncRecordPath(urn, quoteTarget, partId, version);
-    const result = await list({
-      token,
-      prefix: pathname,
-      limit: 5,
-    });
-
-    const blob = result.blobs.find((item) => item.pathname === pathname);
-    if (!blob) {
+    const text = await getObjectText(pathname);
+    if (text === null) {
       return null;
     }
 
-    const response = await fetch(blob.url, { cache: "no-store" });
-    if (!response.ok) {
-      return null;
-    }
-
-    return (await response.json()) as DigifabsterUploadRecord;
+    return JSON.parse(text) as DigifabsterUploadRecord;
   } catch {
     return null;
   }
 };
 
 const saveSyncRecord = async (record: DigifabsterUploadRecord) => {
-  if (!hasBlobToken()) {
+  if (!hasStorage()) {
     return;
   }
 
   try {
-    const token = getBlobToken();
-    await put(syncRecordPath(record.urn, record.quoteTarget, record.partId, record.version), JSON.stringify(record), {
-      access: "public",
-      addRandomSuffix: false,
-      contentType: "application/json",
-      token,
-    });
+    await putObject(
+      syncRecordPath(record.urn, record.quoteTarget, record.partId, record.version),
+      JSON.stringify(record),
+      "application/json",
+    );
   } catch {
     // Cache write failure should not block the live quote pipeline.
   }
@@ -885,12 +859,12 @@ export const syncQuoteDerivativeToDigifabster = async (
     }
     logStep(params.traceId, "sync.cache.lookup.miss");
 
-    if (!hasBlobToken()) {
+    if (!hasStorage()) {
       throw new DigifabsterSyncError({
-        message: "BLOB_READ_WRITE_TOKEN is required for quote derivative upload.",
+        message: "Object storage (R2) is required for quote derivative upload.",
         status: 500,
-        code: "blob_unavailable",
-        details: "Configure BLOB_READ_WRITE_TOKEN to enable quote derivative syncing.",
+        code: "storage_unavailable",
+        details: "Bind an R2 bucket (and set R2_PUBLIC_BASE_URL) to enable quote derivative syncing.",
       });
     }
 
@@ -958,7 +932,6 @@ export const syncQuoteDerivativeToDigifabster = async (
       throw dlError;
     }
 
-    const token = getBlobToken();
     const fileName = deriveFileName(derivative.derivativeUrn, params.quoteTarget);
     const normalizedFileName = pathPosix.basename(fileName);
 
@@ -966,12 +939,11 @@ export const syncQuoteDerivativeToDigifabster = async (
       pathname: derivativeBlobPath(params.urn, params.quoteTarget, normalizedFileName),
       fileName: normalizedFileName,
     });
-    const uploaded = await put(derivativeBlobPath(params.urn, params.quoteTarget, normalizedFileName), Buffer.from(derivativeBytes), {
-      access: "public",
-      addRandomSuffix: false,
-      contentType: quoteContentType(params.quoteTarget),
-      token,
-    });
+    const uploaded = await putObject(
+      derivativeBlobPath(params.urn, params.quoteTarget, normalizedFileName),
+      Buffer.from(derivativeBytes),
+      quoteContentType(params.quoteTarget),
+    );
 
     logStep(params.traceId, "sync.derivative.upload_blob.success", {
       fileUrl: uploaded.url,
