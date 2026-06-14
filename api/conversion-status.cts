@@ -1,6 +1,7 @@
 import { fetchAccessToken, findDerivativeByType, getManifest } from "./autodesk_helpers";
 import {
   DigifabsterSyncError,
+  getDigifabsterModelThumbnail,
   resolvePriceTweakingEndpoint,
   syncNativeSourceToDigifabster,
   syncQuoteDerivativeToDigifabster,
@@ -170,18 +171,29 @@ const buildBubbleDataApiHeaders = (token: string) => {
   };
 };
 
-const updateBubbleOrderPartModelId = async (params: {
+export const updateBubbleOrderPartModelId = async (params: {
   baseUrl: string;
   token: string;
   thingType: string;
   partId: string;
   fieldName: string;
   modelId: number;
+  thumbnailField?: string | null;
+  thumbnailUrl?: string | null;
+  extraFields?: Record<string, unknown> | null;
 }) => {
   const endpoint = `${params.baseUrl}/${encodeURIComponent(params.thingType)}/${encodeURIComponent(params.partId)}`;
-  const payload = {
+  const payload: Record<string, unknown> = {
     [params.fieldName]: String(params.modelId),
   };
+  if (params.thumbnailField && params.thumbnailUrl) {
+    payload[params.thumbnailField] = params.thumbnailUrl;
+  }
+  if (params.extraFields) {
+    for (const [key, value] of Object.entries(params.extraFields)) {
+      if (value !== null && value !== undefined) payload[key] = value;
+    }
+  }
 
   const response = await fetch(endpoint, {
     method: "PATCH",
@@ -240,6 +252,8 @@ export async function POST(req: Request) {
       bubbleOrderPartType,
       bubble_modelid_field,
       bubbleModelIdField,
+      bubble_thumbnail_field,
+      bubbleThumbnailField,
     } = body;
     if (typeof body?.traceId === "string" && body.traceId.trim()) {
       traceId = body.traceId.trim();
@@ -418,6 +432,7 @@ export async function POST(req: Request) {
     let quoteUpload:
       | {
           status: "skipped" | "submitted" | "cached";
+          uploadJobId: string | null;
           objectModelId: number | null;
           orderId: number | null;
           sessionId: string | null;
@@ -630,6 +645,13 @@ export async function POST(req: Request) {
       pickString(bubble_orderpart_type, bubbleOrderPartType, process.env.BUBBLE_ORDERPART_TYPE) || "orderpart";
     const bubbleModelField =
       pickString(bubble_modelid_field, bubbleModelIdField, process.env.BUBBLE_MODELID_FIELD) || "modelId";
+    const bubbleThumbnailFieldResolved =
+      pickString(bubble_thumbnail_field, bubbleThumbnailField, process.env.BUBBLE_THUMBNAIL_FIELD) || "modelThumbnail";
+    // Bubble field names for the model bounding-box dimensions (from DigiFabster `size`).
+    const bubbleDimXField = pickString(process.env.BUBBLE_DIM_X_FIELD) || "dimX";
+    const bubbleDimYField = pickString(process.env.BUBBLE_DIM_Y_FIELD) || "dimY";
+    const bubbleDimZField = pickString(process.env.BUBBLE_DIM_Z_FIELD) || "dimZ";
+    const bubbleDimUnitsField = pickString(process.env.BUBBLE_DIM_UNITS_FIELD) || "dimUnits";
     const bubbleDataApiBaseUrlResolved = normalizeBubbleDataApiBaseUrl(
       pickString(bubble_data_api_base_url, bubbleDataApiBaseUrl, process.env.BUBBLE_DATA_API_BASE_URL),
     );
@@ -656,13 +678,37 @@ export async function POST(req: Request) {
         });
       } else {
         try {
+          // Best-effort model fetch — thumbnail + bounding-box dimensions ride along
+          // in the same Bubble PATCH. A pending/unavailable thumbnail never blocks the write.
+          let thumbnailUrl: string | null = null;
+          let dimensionFields: Record<string, unknown> | null = null;
+          try {
+            const model = await getDigifabsterModelThumbnail(quoteUpload.objectModelId, traceId);
+            thumbnailUrl = model.thumb300x300 || model.thumb120x120 || model.thumb;
+            const dims: Record<string, unknown> = {};
+            if (model.sizeX !== null) dims[bubbleDimXField] = model.sizeX;
+            if (model.sizeY !== null) dims[bubbleDimYField] = model.sizeY;
+            if (model.sizeZ !== null) dims[bubbleDimZField] = model.sizeZ;
+            if (model.units !== null) dims[bubbleDimUnitsField] = model.units;
+            if (Object.keys(dims).length > 0) dimensionFields = dims;
+          } catch (thumbnailError) {
+            logStep(traceId, "bubble.orderpart.thumbnail.skipped", {
+              orderPartId: partIdForUpdate,
+              modelId: quoteUpload.objectModelId,
+              message: thumbnailError instanceof Error ? thumbnailError.message : "Unknown thumbnail error",
+            });
+          }
+
           const updateResult = await updateBubbleOrderPartModelId({
             baseUrl: bubbleDataApiBaseUrlResolved,
             token: bubbleToken,
             thingType: bubbleThingType,
             partId: partIdForUpdate,
+            extraFields: dimensionFields,
             fieldName: bubbleModelField,
             modelId: quoteUpload.objectModelId,
+            thumbnailField: thumbnailUrl ? bubbleThumbnailFieldResolved : null,
+            thumbnailUrl,
           });
 
           if (!updateResult.ok) {
@@ -695,11 +741,17 @@ export async function POST(req: Request) {
               fieldName: bubbleModelField,
               httpStatus: updateResult.status,
               response: updateResult.responseData,
+              ...(thumbnailUrl
+                ? { thumbnailField: bubbleThumbnailFieldResolved, thumbnailUrl }
+                : {}),
+              ...(dimensionFields ? { dimensions: dimensionFields } : {}),
             };
             logStep(traceId, "bubble.orderpart.update.success", {
               endpoint: updateResult.endpoint,
               orderPartId: partIdForUpdate,
               modelId: quoteUpload.objectModelId,
+              thumbnailWritten: Boolean(thumbnailUrl),
+              dimensionsWritten: Boolean(dimensionFields),
               httpStatus: updateResult.status,
             });
           }
@@ -779,6 +831,7 @@ export async function POST(req: Request) {
             digifabsterEndpoint: resolvePriceTweakingEndpoint(),
             payload: quoteUpload
               ? {
+                  uploadJob: quoteUpload.uploadJobId,
                   objectModelId: quoteUpload.objectModelId,
                   orderId: quoteUpload.orderId,
                   sessionId: quoteUpload.sessionId,

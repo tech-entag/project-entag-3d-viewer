@@ -1,0 +1,17 @@
+# Cloudflare Pages configuration.
+# The Vercel deployment config (vercel.json) is left in place and untouched;
+# this drives the parallel Cloudflare Pages deployment.
+
+name = "project-entag-3d-viewer"
+compatibility_date = "2024-09-23"
+
+# Required: the api/ handlers rely on Node built-ins (Buffer, node:path) and
+# the env -> process.env bridge in functions/api/[[path]].ts.
+compatibility_flags = ["nodejs_compat"]
+
+# Static SPA output produced by `pnpm build:cloudflare`.
+pages_build_output_dir = "dist"
+
+# Environment variables / secrets are NOT defined here. Set them in the
+# Cloudflare Pages project settings (or via `wrangler pages secret put`).
+# See docs/cloudflare-migration.md for the full list.
