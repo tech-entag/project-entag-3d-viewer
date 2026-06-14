@@ -126,6 +126,10 @@ const runAutoBubbleWriteback = async (params: {
       if (viewerAccessToken) {
         cachedViewerToken = viewerAccessToken;
       }
+      const dimensionsWritten = Boolean(orderPartUpdate?.dimensions);
+      const thumbnailWritten = Boolean(orderPartUpdate?.thumbnailUrl);
+      const hasUpload = Boolean(quote?.upload?.objectModelId);
+
       lastSnapshot = {
         attempt,
         httpStatus: response.status,
@@ -138,29 +142,28 @@ const runAutoBubbleWriteback = async (params: {
         objectModelId: quote?.upload?.objectModelId || null,
         orderPartUpdateStatus: orderPartUpdate?.status || null,
         orderPartUpdateReason: orderPartUpdate?.reason || null,
+        dimensionsWritten,
+        thumbnailWritten,
       };
 
-      if (orderPartUpdate?.status === "updated") {
+      if (orderPartUpdate?.status === "failed" || quote?.status === "failed") {
+        return {
+          status: "failed",
+          attempts: attempt,
+          endpoint,
+          last: lastSnapshot,
+        };
+      }
+
+      // DigiFabster uploads the model immediately, but computes the thumbnail +
+      // bounding-box dimensions asynchronously. Keep polling until they have
+      // actually been written to Bubble — not just the modelId — so a single
+      // /api/autodesk call returns with image + dimX/dimY/dimZ already set.
+      const modelComplete =
+        orderPartUpdate?.status === "updated" && (dimensionsWritten || thumbnailWritten);
+      if (modelComplete) {
         return {
           status: "updated",
-          attempts: attempt,
-          endpoint,
-          last: lastSnapshot,
-        };
-      }
-
-      if (orderPartUpdate?.status === "failed") {
-        return {
-          status: "failed",
-          attempts: attempt,
-          endpoint,
-          last: lastSnapshot,
-        };
-      }
-
-      if (quote?.status === "failed") {
-        return {
-          status: "failed",
           attempts: attempt,
           endpoint,
           last: lastSnapshot,
@@ -173,7 +176,8 @@ const runAutoBubbleWriteback = async (params: {
         typeof viewer?.localModelUrl === "string" &&
         viewer.localModelUrl.trim().length > 0;
 
-      if (viewerReady) {
+      // Viewer-only flows (no DigiFabster upload) complete on viewer readiness.
+      if (!hasUpload && viewerReady) {
         return {
           status: "updated",
           attempts: attempt,
