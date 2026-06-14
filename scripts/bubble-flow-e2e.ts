@@ -5,7 +5,9 @@ import { createServer, IncomingMessage, Server, ServerResponse } from "node:http
 import { pathToFileURL } from "node:url";
 
 type JsonValue = string | number | boolean | null | JsonObject | JsonValue[];
-type JsonObject = Record<string, JsonValue>;
+interface JsonObject {
+  [key: string]: JsonValue;
+}
 
 const STEP_FIXTURE_PATH =
   process.env.STEP_FIXTURE_PATH ||

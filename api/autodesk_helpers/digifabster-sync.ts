@@ -20,6 +20,7 @@ interface DigifabsterUploadRecord {
   version: string;
   fileUrl: string;
   fileName: string;
+  uploadJobId: string | null;
   objectModelId: number | null;
   orderId: number | null;
   sessionId: string | null;
@@ -29,6 +30,7 @@ interface DigifabsterUploadRecord {
 
 export interface QuoteUploadSyncResult {
   status: SyncStatus;
+  uploadJobId: string | null;
   objectModelId: number | null;
   orderId: number | null;
   sessionId: string | null;
@@ -614,7 +616,7 @@ const callDigifabsterUpload = async (
   partId: string,
   version: string,
   traceId?: string
-): Promise<DigifabsterUploadResponse> => {
+): Promise<{ uploadResponse: DigifabsterUploadResponse; uploadJobId: string | null }> => {
   const configuredEndpoint = resolveDigifabsterUploadEndpoint();
   if (!configuredEndpoint) {
     throw new DigifabsterSyncError({
@@ -652,12 +654,14 @@ const callDigifabsterUpload = async (
 
     try {
       let usedAuthMode: "s2s" | "direct" = "s2s";
+      let capturedUploadJobId: string | null = null;
       const s2sHeaders = await buildDigifabsterHeaders();
       delete s2sHeaders["Content-Type"];
       const modelBlob = await fetchModelBlobFromUrl(fileUrl);
 
       const buildRequestBody = async (headers: Record<string, string>) => {
         const uploadJobId = await createUploadJob(endpoint, headers, controller.signal);
+        capturedUploadJobId = uploadJobId;
         const form = new FormData();
         form.set("upload_job_id", uploadJobId);
         if (modelBlob) {
@@ -746,12 +750,13 @@ const callDigifabsterUpload = async (
 
       logStep(traceId, "digifabster.upload.success", {
         attempt: attemptNumber,
+        uploadJobId: capturedUploadJobId,
         objectModelId: data.object_model_id ?? null,
         orderId: data.order_id ?? null,
         sessionId: data.session_id ?? null,
       });
 
-      return data;
+      return { uploadResponse: data, uploadJobId: capturedUploadJobId };
     } catch (error) {
       const aborted = error instanceof Error && error.name === "AbortError";
       const retryable = attempt < MAX_UPLOAD_RETRIES;
@@ -843,6 +848,7 @@ export const syncQuoteDerivativeToDigifabster = async (
     logStep(params.traceId, "sync.skipped", { reason: "missing_part_or_version" });
     return {
       status: "skipped",
+      uploadJobId: null,
       objectModelId: null,
       orderId: null,
       sessionId: null,
@@ -867,6 +873,7 @@ export const syncQuoteDerivativeToDigifabster = async (
       });
       return {
         status: "cached",
+        uploadJobId: cached.uploadJobId,
         objectModelId: cached.objectModelId,
         orderId: cached.orderId,
         sessionId: cached.sessionId,
@@ -971,7 +978,7 @@ export const syncQuoteDerivativeToDigifabster = async (
       fileName: normalizedFileName,
     });
 
-    const uploadResponse = await callDigifabsterUpload(uploaded.url, normalizedFileName, partId, version, params.traceId);
+    const { uploadResponse, uploadJobId } = await callDigifabsterUpload(uploaded.url, normalizedFileName, partId, version, params.traceId);
 
     const record: DigifabsterUploadRecord = {
       urn: params.urn,
@@ -980,6 +987,7 @@ export const syncQuoteDerivativeToDigifabster = async (
       version,
       fileUrl: uploaded.url,
       fileName: normalizedFileName,
+      uploadJobId,
       objectModelId: Number.isFinite(Number(uploadResponse.object_model_id))
         ? Number(uploadResponse.object_model_id)
         : null,
@@ -1001,6 +1009,7 @@ export const syncQuoteDerivativeToDigifabster = async (
 
     return {
       status: "submitted",
+      uploadJobId: record.uploadJobId,
       objectModelId: record.objectModelId,
       orderId: record.orderId,
       sessionId: record.sessionId,
@@ -1039,6 +1048,7 @@ export const syncNativeSourceToDigifabster = async (
     logStep(params.traceId, "sync.skipped", { reason: "missing_part_or_version" });
     return {
       status: "skipped",
+      uploadJobId: null,
       objectModelId: null,
       orderId: null,
       sessionId: null,
@@ -1080,6 +1090,7 @@ export const syncNativeSourceToDigifabster = async (
 
       return {
         status: "cached",
+        uploadJobId: cached.uploadJobId,
         objectModelId: cached.objectModelId,
         orderId: cached.orderId,
         sessionId: cached.sessionId,
@@ -1092,7 +1103,7 @@ export const syncNativeSourceToDigifabster = async (
 
     logStep(params.traceId, "sync.cache.lookup.miss", { quoteTarget: "native" });
 
-    const uploadResponse = await callDigifabsterUpload(sourceUrl, fileName, partId, version, params.traceId);
+    const { uploadResponse, uploadJobId } = await callDigifabsterUpload(sourceUrl, fileName, partId, version, params.traceId);
 
     const record: DigifabsterUploadRecord = {
       urn: params.urn,
@@ -1101,6 +1112,7 @@ export const syncNativeSourceToDigifabster = async (
       version,
       fileUrl: sourceUrl,
       fileName,
+      uploadJobId,
       objectModelId: Number.isFinite(Number(uploadResponse.object_model_id))
         ? Number(uploadResponse.object_model_id)
         : null,
@@ -1123,6 +1135,7 @@ export const syncNativeSourceToDigifabster = async (
 
     return {
       status: "submitted",
+      uploadJobId: record.uploadJobId,
       objectModelId: record.objectModelId,
       orderId: record.orderId,
       sessionId: record.sessionId,
@@ -1140,6 +1153,260 @@ export const syncNativeSourceToDigifabster = async (
     });
     throw error;
   }
+};
+
+/* ------------------------------------------------------------------ */
+/*  Order creation + model thumbnail                                  */
+/* ------------------------------------------------------------------ */
+
+export type DigifabsterOrderStatus =
+  | "created"
+  | "waiting_for_review"
+  | "placed"
+  | "firm_offer_sent"
+  | "initial";
+
+export interface DigifabsterOrderCustomer {
+  name: string;
+  surname: string;
+  phone: string;
+  email: string;
+  status?: DigifabsterOrderStatus;
+  notes?: string;
+  billing_name?: string;
+  billing_surname?: string;
+  billing_phone?: string;
+  billing_email?: string;
+  custom_fields?: Record<string, unknown>;
+  delivery_address?: Record<string, unknown>;
+  customer_company_address?: Record<string, unknown>;
+  disable_notification?: boolean;
+}
+
+export interface CreateDigifabsterOrderResult {
+  orderId: number;
+  data: Record<string, unknown>;
+}
+
+export interface SubmitDigifabsterOrderResult {
+  orderId: number;
+  payUrl: string | null;
+  orderUrl: string | null;
+  invoiceId: string | null;
+  invoiceHash: string | null;
+  data: Record<string, unknown>;
+}
+
+export interface DigifabsterModelThumbnail {
+  modelId: number;
+  thumb: string | null;
+  thumb120x120: string | null;
+  thumb300x300: string | null;
+  thumbStatus: string | null;
+  /** Bounding-box dimensions from the model `size` object (nullable). */
+  sizeX: number | null;
+  sizeY: number | null;
+  sizeZ: number | null;
+  /** Measurement unit for the dimensions/volume: "mm" | "cm" | "in". */
+  units: string | null;
+  volume: number | null;
+  surface: number | null;
+}
+
+const asResponseRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+
+const optionalString = (value: unknown): string | null =>
+  typeof value === "string" && value.trim() ? value : null;
+
+const optionalNumber = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) ? value : null;
+
+/**
+ * POST /v2/orders/ — create an initial (draft) order, optionally linked to an
+ * upload job. Returns the new order id plus the raw initial-order payload.
+ */
+export const createDigifabsterOrder = async (params: {
+  uploadJob?: string | null;
+  locale?: string | null;
+  inhouseOwner?: number | null;
+  payload?: unknown;
+  traceId?: string;
+}): Promise<CreateDigifabsterOrderResult> => {
+  const headers = await buildDigifabsterHeaders();
+  const base = resolveDigifabsterBaseUrl();
+
+  const body: Record<string, unknown> = {};
+  if (params.uploadJob && params.uploadJob.trim()) body.upload_job = params.uploadJob.trim();
+  if (params.locale && params.locale.trim()) body.locale = params.locale.trim();
+  if (typeof params.inhouseOwner === "number" && Number.isFinite(params.inhouseOwner)) {
+    body.inhouse_owner = params.inhouseOwner;
+  }
+  if (params.payload !== undefined) body.payload = params.payload;
+
+  logStep(params.traceId, "order.create.start", { hasUploadJob: Boolean(body.upload_job) });
+
+  const response = await fetch(`${base}/v2/orders/`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  const data = asResponseRecord(await parseJsonResponse(response));
+
+  if (!response.ok) {
+    logStep(params.traceId, "order.create.failed", { status: response.status });
+    throw new DigifabsterSyncError({
+      message: "DigiFabster order creation failed.",
+      status: response.status || 502,
+      code: "digifabster_order_create_failed",
+      details:
+        (typeof data.detail === "string" && data.detail) ||
+        (Object.keys(data).length > 0 ? JSON.stringify(data).slice(0, 2_000) : null),
+      retryable: response.status >= 500,
+    });
+  }
+
+  const orderId = Number(data.id);
+  if (!Number.isFinite(orderId)) {
+    throw new DigifabsterSyncError({
+      message: "DigiFabster order creation response missing id.",
+      status: 502,
+      code: "digifabster_order_create_missing_id",
+      details: null,
+      retryable: false,
+    });
+  }
+
+  logStep(params.traceId, "order.create.success", { orderId });
+  return { orderId, data };
+};
+
+/**
+ * POST /v2/orders/{id}/submit_initial_order/ — finalize a draft order with the
+ * required customer details. Returns pay/order URLs and invoice identifiers.
+ */
+export const submitDigifabsterInitialOrder = async (params: {
+  orderId: number;
+  customer: DigifabsterOrderCustomer;
+  traceId?: string;
+}): Promise<SubmitDigifabsterOrderResult> => {
+  const { orderId, customer } = params;
+
+  for (const field of ["name", "surname", "phone", "email"] as const) {
+    if (!customer[field] || !String(customer[field]).trim()) {
+      throw new DigifabsterSyncError({
+        message: `Missing required customer field "${field}" for order submission.`,
+        status: 400,
+        code: "digifabster_order_customer_field_missing",
+        details: `submit_initial_order requires name, surname, phone, and email.`,
+        retryable: false,
+      });
+    }
+  }
+
+  const headers = await buildDigifabsterHeaders();
+  const base = resolveDigifabsterBaseUrl();
+
+  const body: Record<string, unknown> = {
+    name: customer.name,
+    surname: customer.surname,
+    phone: customer.phone,
+    email: customer.email,
+    status: customer.status || "created",
+  };
+  if (customer.notes) body.notes = customer.notes;
+  if (customer.billing_name) body.billing_name = customer.billing_name;
+  if (customer.billing_surname) body.billing_surname = customer.billing_surname;
+  if (customer.billing_phone) body.billing_phone = customer.billing_phone;
+  if (customer.billing_email) body.billing_email = customer.billing_email;
+  if (customer.custom_fields) body.custom_fields = customer.custom_fields;
+  if (customer.delivery_address) body.delivery_address = customer.delivery_address;
+  if (customer.customer_company_address) body.customer_company_address = customer.customer_company_address;
+  if (typeof customer.disable_notification === "boolean") body.disable_notification = customer.disable_notification;
+
+  logStep(params.traceId, "order.submit.start", { orderId, status: body.status });
+
+  const response = await fetch(`${base}/v2/orders/${encodeURIComponent(String(orderId))}/submit_initial_order/`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  const data = asResponseRecord(await parseJsonResponse(response));
+
+  if (!response.ok) {
+    logStep(params.traceId, "order.submit.failed", { orderId, status: response.status });
+    throw new DigifabsterSyncError({
+      message: "DigiFabster order submission failed.",
+      status: response.status || 502,
+      code: "digifabster_order_submit_failed",
+      details:
+        (typeof data.detail === "string" && data.detail) ||
+        (Object.keys(data).length > 0 ? JSON.stringify(data).slice(0, 2_000) : null),
+      retryable: response.status >= 500,
+    });
+  }
+
+  logStep(params.traceId, "order.submit.success", { orderId });
+  return {
+    orderId: Number.isFinite(Number(data.id)) ? Number(data.id) : orderId,
+    payUrl: optionalString(data.pay_url),
+    orderUrl: optionalString(data.order_url),
+    invoiceId: optionalString(data.invoice_id),
+    invoiceHash: optionalString(data.invoice_hash),
+    data,
+  };
+};
+
+/**
+ * GET /v2/models/{id}/ — fetch a model's generated thumbnails (URLs) by the
+ * object_model_id returned from an upload.
+ */
+export const getDigifabsterModelThumbnail = async (
+  modelId: number,
+  traceId?: string,
+): Promise<DigifabsterModelThumbnail> => {
+  const headers = await buildDigifabsterHeaders();
+  logStep(traceId, "model.thumbnail.start", { modelId });
+
+  const { ok, status, data } = await fetchDigifabsterJson(
+    `/v2/models/${encodeURIComponent(String(modelId))}/`,
+    headers,
+  );
+
+  if (!ok) {
+    logStep(traceId, "model.thumbnail.failed", { modelId, status });
+    throw new DigifabsterSyncError({
+      message: `Failed to fetch DigiFabster model ${modelId}.`,
+      status: status || 502,
+      code: "digifabster_model_fetch_failed",
+      details: typeof data === "object" ? JSON.stringify(data).slice(0, 2_000) : null,
+      retryable: status >= 500,
+    });
+  }
+
+  const record = asResponseRecord(data);
+  const size = asResponseRecord(record.size);
+  logStep(traceId, "model.thumbnail.success", {
+    modelId,
+    thumbStatus: optionalString(record.thumb_status),
+    hasDimensions: optionalNumber(size.x) !== null,
+  });
+
+  return {
+    modelId,
+    thumb: optionalString(record.thumb),
+    thumb120x120: optionalString(record.thumb_120x120),
+    thumb300x300: optionalString(record.thumb_300x300),
+    thumbStatus: optionalString(record.thumb_status),
+    sizeX: optionalNumber(size.x),
+    sizeY: optionalNumber(size.y),
+    sizeZ: optionalNumber(size.z),
+    units: optionalString(record.units),
+    volume: optionalNumber(record.volume),
+    surface: optionalNumber(record.surface),
+  };
 };
 
 export { DigifabsterSyncError };
