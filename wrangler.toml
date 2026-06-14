@@ -12,6 +12,10 @@ compatibility_flags = ["nodejs_compat"]
 # Static SPA output produced by `pnpm build:cloudflare`.
 pages_build_output_dir = "dist"
 
-# Environment variables / secrets are NOT defined here. Set them in the
-# Cloudflare Pages project settings (or via `wrangler pages secret put`).
-# See docs/cloudflare-migration.md for the full list.
+# Non-secret runtime config. Secrets (API keys, tokens) are NOT defined here —
+# set those in the Cloudflare Pages project settings or via
+# `wrangler pages secret put`. See docs/cloudflare-migration.md for the full list.
+[vars]
+DIGIFABSTER_UPLOAD_ENDPOINT = "https://digifabster.com/v2/upload_models/"
+# NOTE: switch `version-test` -> `version-live` for the production Bubble app.
+BUBBLE_DATA_API_BASE_URL = "https://app.entag.co/version-test/api/1.1/obj"
