@@ -689,8 +689,13 @@ export async function POST(req: Request) {
             if (model.sizeX !== null) dims[bubbleDimXField] = model.sizeX;
             if (model.sizeY !== null) dims[bubbleDimYField] = model.sizeY;
             if (model.sizeZ !== null) dims[bubbleDimZField] = model.sizeZ;
-            if (model.units !== null) dims[bubbleDimUnitsField] = model.units;
-            if (Object.keys(dims).length > 0) dimensionFields = dims;
+            // `units` is returned early (static); the bounding box is computed
+            // asynchronously. Only treat dimensions as "written" once at least one
+            // numeric size is present — otherwise the follow-up loop would stop
+            // early on units alone, before x/y/z exist.
+            const hasNumericDimension = Object.keys(dims).length > 0;
+            if (hasNumericDimension && model.units !== null) dims[bubbleDimUnitsField] = model.units;
+            if (hasNumericDimension) dimensionFields = dims;
           } catch (thumbnailError) {
             logStep(traceId, "bubble.orderpart.thumbnail.skipped", {
               orderPartId: partIdForUpdate,
