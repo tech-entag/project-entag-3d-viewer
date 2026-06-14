@@ -211,7 +211,7 @@ const run = async () => {
       partId: "orderpart-abc",
       fieldName: "modelId",
       modelId: upload.objectModelId as number,
-      thumbnailField: "modelThumbnail",
+      thumbnailField: "image",
       thumbnailUrl,
       extraFields: {
         dimX: thumbnail.sizeX,
@@ -225,7 +225,7 @@ const run = async () => {
     assert.ok(captured.bubblePatch, "Bubble server should have captured a PATCH");
     assert.equal(captured.bubblePatch?.url, "/api/1.1/obj/orderpart/orderpart-abc", "PATCH should target the orderpart");
     assert.equal(captured.bubblePatch?.body.modelId, String(OBJECT_MODEL_ID), "PATCH must set modelId");
-    assert.equal(captured.bubblePatch?.body.modelThumbnail, THUMB_300, "PATCH must set thumbnail in the same request");
+    assert.equal(captured.bubblePatch?.body.image, THUMB_300, "PATCH must set thumbnail in the same request");
     assert.equal(captured.bubblePatch?.body.dimX, 120.5, "PATCH must set dimX");
     assert.equal(captured.bubblePatch?.body.dimY, 80, "PATCH must set dimY");
     assert.equal(captured.bubblePatch?.body.dimZ, 15.2, "PATCH must set dimZ");
