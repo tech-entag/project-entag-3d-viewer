@@ -1,13 +1,11 @@
 import { randomUUID } from "node:crypto";
 
-import { put } from "@vercel/blob";
-
 import {
   DEFAULT_ACCEPTED_FILE_TYPES,
   DEFAULT_MAX_FILE_SIZE_BYTES,
 } from "../../../embed_helpers/contracts";
 import { saveEmbedPart } from "../../../embed_helpers/part-store";
-import { getBlobToken, hasBlobToken } from "../../../embed_helpers/blob-storage";
+import { hasStorage, putObject } from "../../../embed_helpers/blob-storage";
 import { updateEmbedSession } from "../../../embed_helpers/session-store";
 import { ensureGuestTokenForSession } from "../../../embed_helpers/request-auth";
 
@@ -110,8 +108,8 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!hasBlobToken()) {
-      return error(503, "Upload storage unavailable", "BLOB_READ_WRITE_TOKEN is required for direct file uploads.");
+    if (!hasStorage()) {
+      return error(503, "Upload storage unavailable", "An R2 bucket binding is required for direct file uploads.");
     }
 
     const vercelPartId = randomUUID();
@@ -119,13 +117,11 @@ export async function POST(req: Request) {
     const safeFileName = sanitizeFileName(fileCandidate.name || "upload.step");
     const storagePath = `embed-source-files/${embedSessionId}/${vercelPartId}/${safeFileName}`;
 
-    const uploaded = await put(storagePath, fileCandidate, {
-      access: "public",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: fileCandidate.type || "application/octet-stream",
-      token: getBlobToken(),
-    });
+    const uploaded = await putObject(
+      storagePath,
+      fileCandidate,
+      fileCandidate.type || "application/octet-stream",
+    );
 
     await saveEmbedPart({
       vercelPartId,

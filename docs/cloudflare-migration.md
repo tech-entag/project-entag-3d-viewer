@@ -48,8 +48,13 @@ Or connect the repo in the Cloudflare Pages dashboard with:
 Set these in **Pages project → Settings → Environment variables** (secrets via
 `wrangler pages secret put`). All are optional/feature-gated except where noted.
 
-Storage (keep Vercel Blob alive for now — see caveat):
-- `BLOB_READ_WRITE_TOKEN`
+Storage (Cloudflare R2 — replaces Vercel Blob):
+- Create the bucket: `wrangler r2 bucket create entag-3d-viewer`
+- The `BLOB_BUCKET` binding is declared in `wrangler.toml` (`[[r2_buckets]]`).
+- `R2_PUBLIC_BASE_URL` — only needed for objects fetched externally/by the browser
+  (CAD STEP/DWG staging, viewer bubbles, sheet-nesting output, embed uploads).
+  Enable r2.dev or attach a custom domain on the bucket and paste the base URL.
+  The native DXF dedup cache does **not** need it.
 
 DigiFabster:
 - `DIGIFABSTER_API_KEY` (or `DIGIFABSTER_API_TOKEN`)
@@ -74,10 +79,12 @@ Embed / misc:
 
 ## Known risks / follow-ups (not blockers for the interim)
 
-1. **`@vercel/blob` on Workers** — it's HTTP-based and bundles under `nodejs_compat`,
-   and works cross-cloud while `BLOB_READ_WRITE_TOKEN` points at Vercel Blob. The clean
-   follow-up is migrating storage to **R2** (centralize behind `api/embed_helpers/blob-storage.ts`
-   first — four files currently call `@vercel/blob` directly).
+1. **Storage is on Cloudflare R2** (no more Vercel Blob). All `put`/`list`/read calls
+   route through `api/embed_helpers/blob-storage.ts`, backed by the `BLOB_BUCKET` R2
+   binding (stashed on `globalThis` by the dispatcher). Internal JSON (dedup cache,
+   price cache, embed session/part records, viewer-cache metadata) uses the binding
+   directly (strongly consistent). Objects served externally/to the browser use a
+   public URL from `R2_PUBLIC_BASE_URL` — make the bucket public for those paths.
 2. **`axios`** (used in some helpers) on the Workers runtime — verify HTTP calls work; the
    `fetch` adapter may be needed if the default Node adapter misbehaves.
 3. **Module-load-time `process.env` reads** — the env bridge runs per request, so any

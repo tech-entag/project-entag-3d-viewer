@@ -1,7 +1,7 @@
-import { list, put } from "@vercel/blob";
 import { posix as pathPosix } from "node:path";
 import { strFromU8, unzipSync } from "fflate";
 
+import { getObjectText, hasStorage, putObject } from "../embed_helpers/blob-storage";
 import {
   downloadDerivativeFile,
   findDerivativeByType,
@@ -49,9 +49,6 @@ const normalizeStatus = (status: string | undefined, progress: string | undefine
   return "queued";
 };
 
-const getBlobToken = () => process.env.BLOB_READ_WRITE_TOKEN || "";
-
-const hasBlobToken = () => Boolean(getBlobToken());
 
 const toUrnKey = (urn: string) => Buffer.from(urn).toString("base64url");
 
@@ -126,39 +123,28 @@ const toRelativePath = (rootDirectory: string, uri: string) => {
   return normalized;
 };
 
-const findBlobByPath = async (pathname: string) => {
-  const token = getBlobToken();
-  const result = await list({
-    prefix: pathname,
-    limit: 5,
-    token,
-  });
-
-  return result.blobs.find((blob) => blob.pathname === pathname) || null;
-};
-
 export const getViewerCacheRecord = async (urn: string): Promise<ViewerCacheRecord | null> => {
-  if (!hasBlobToken()) {
+  if (!hasStorage()) {
     return null;
   }
 
-  const blob = await findBlobByPath(mappingPath(urn));
-  if (!blob) {
+  const text = await getObjectText(mappingPath(urn));
+  if (text === null) {
     return null;
   }
 
-  const response = await fetch(blob.url, { cache: "no-store" });
-  if (!response.ok) {
-    return null;
-  }
-
-  const payload = (await response.json()) as {
+  let payload: {
     urn?: string;
     localModelUrl?: string;
     bubbleUrl?: string;
     derivativeUrn?: string;
     storedAt?: string;
   };
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    return null;
+  }
 
   const localModelUrl = payload.localModelUrl || payload.bubbleUrl;
   if (!payload.urn || !localModelUrl || !payload.derivativeUrn || !payload.storedAt) {
@@ -174,21 +160,14 @@ export const getViewerCacheRecord = async (urn: string): Promise<ViewerCacheReco
 };
 
 const saveViewerCacheRecord = async (record: ViewerCacheRecord) => {
-  const token = getBlobToken();
-  await put(mappingPath(record.urn), JSON.stringify(record), {
-    access: "public",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: "application/json",
-    token,
-  });
+  await putObject(mappingPath(record.urn), JSON.stringify(record), "application/json");
 };
 
 export const ensureViewerBubbleInBlob = async (
   urn: string,
   accessToken: string
 ): Promise<EnsureViewerBubbleResult> => {
-  if (!hasBlobToken()) {
+  if (!hasStorage()) {
     return {
       status: "blob_unavailable",
       localModelUrl: null,
@@ -225,17 +204,10 @@ export const ensureViewerBubbleInBlob = async (
   const signed = await getDerivativeDownloadUrl(urn, viewerDerivative.derivativeUrn, accessToken);
   const rootBytes = await downloadDerivativeFile(signed.url, signed.cookies);
 
-  const token = getBlobToken();
   const urnKey = toUrnKey(urn);
   const rootRelativePath = deriveRelativeDerivativePath(viewerDerivative.derivativeUrn);
   const rootBlobPath = `viewer-bubbles/${urnKey}/${rootRelativePath}`;
-  const uploaded = await put(rootBlobPath, Buffer.from(rootBytes), {
-    access: "public",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: "application/octet-stream",
-    token,
-  });
+  const uploaded = await putObject(rootBlobPath, Buffer.from(rootBytes), "application/octet-stream");
 
   const rootDirectory = pathPosix.dirname(rootRelativePath);
   const derivativePrefix = viewerDerivative.derivativeUrn.slice(
@@ -257,13 +229,7 @@ export const ensureViewerBubbleInBlob = async (
     try {
       const dependencySigned = await getDerivativeDownloadUrl(urn, dependencyUrn, accessToken);
       const dependencyBytes = await downloadDerivativeFile(dependencySigned.url, dependencySigned.cookies);
-      await put(`viewer-bubbles/${urnKey}/${relativePath}`, Buffer.from(dependencyBytes), {
-        access: "public",
-        addRandomSuffix: false,
-        allowOverwrite: true,
-        contentType: "application/octet-stream",
-        token,
-      });
+      await putObject(`viewer-bubbles/${urnKey}/${relativePath}`, Buffer.from(dependencyBytes), "application/octet-stream");
     } catch (error) {
       console.warn(`Failed to cache SVF dependency: ${relativePath}`, error);
     }

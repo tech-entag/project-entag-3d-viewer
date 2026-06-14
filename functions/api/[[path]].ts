@@ -93,6 +93,17 @@ const bridgeEnv = (env: Record<string, unknown>) => {
   }
 };
 
+/**
+ * Stash the R2 bucket binding on globalThis so the storage adapter
+ * (api/embed_helpers/blob-storage.ts) can reach it without an `env` param.
+ */
+const bridgeR2 = (env: Record<string, unknown>) => {
+  const bucket = env.BLOB_BUCKET;
+  if (bucket) {
+    (globalThis as { __ENTAG_R2__?: unknown }).__ENTAG_R2__ = bucket;
+  }
+};
+
 const withCors = (response: Response): Response => {
   const headers = new Headers(response.headers);
   for (const [key, value] of Object.entries(GLOBAL_CORS)) {
@@ -116,6 +127,7 @@ const json = (payload: unknown, status: number): Response =>
 export const onRequest = async (context: PagesContext): Promise<Response> => {
   const { request, env } = context;
   bridgeEnv(env);
+  bridgeR2(env);
 
   const { pathname } = new URL(request.url);
   const mod = matchRoute(pathname);

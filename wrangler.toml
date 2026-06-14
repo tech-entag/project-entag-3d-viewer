@@ -19,3 +19,14 @@ pages_build_output_dir = "dist"
 DIGIFABSTER_UPLOAD_ENDPOINT = "https://digifabster.com/v2/upload_models/"
 # NOTE: switch `version-test` -> `version-live` for the production Bubble app.
 BUBBLE_DATA_API_BASE_URL = "https://app.entag.co/version-test/api/1.1/obj"
+# Public base URL for R2 objects (enable r2.dev on the bucket, or attach a
+# custom domain, and paste it here). Required only for objects fetched by
+# external services or the browser (CAD STEP/DWG staging, viewer bubbles,
+# sheet-nesting output, embed uploads). The DXF dedup cache does NOT need it.
+R2_PUBLIC_BASE_URL = ""
+
+# Cloudflare R2 bucket binding (replaces Vercel Blob). Create the bucket first:
+#   wrangler r2 bucket create entag-3d-viewer
+[[r2_buckets]]
+binding = "BLOB_BUCKET"
+bucket_name = "entag-3d-viewer"
