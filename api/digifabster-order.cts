@@ -300,7 +300,7 @@ export async function POST(req: Request) {
     pickString(body.bubble_orderpart_type, body.bubbleOrderPartType, process.env.BUBBLE_ORDERPART_TYPE) || "orderpart";
   const bubbleThumbnailField =
     pickString(body.bubble_thumbnail_field, body.bubbleThumbnailField, process.env.BUBBLE_THUMBNAIL_FIELD) ||
-    "modelThumbnail";
+    "image";
   const bubbleOrderIdField = pickString(
     body.bubble_orderid_field,
     body.bubbleOrderIdField,

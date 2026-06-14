@@ -646,7 +646,7 @@ export async function POST(req: Request) {
     const bubbleModelField =
       pickString(bubble_modelid_field, bubbleModelIdField, process.env.BUBBLE_MODELID_FIELD) || "modelId";
     const bubbleThumbnailFieldResolved =
-      pickString(bubble_thumbnail_field, bubbleThumbnailField, process.env.BUBBLE_THUMBNAIL_FIELD) || "modelThumbnail";
+      pickString(bubble_thumbnail_field, bubbleThumbnailField, process.env.BUBBLE_THUMBNAIL_FIELD) || "image";
     // Bubble field names for the model bounding-box dimensions (from DigiFabster `size`).
     const bubbleDimXField = pickString(process.env.BUBBLE_DIM_X_FIELD) || "dimX";
     const bubbleDimYField = pickString(process.env.BUBBLE_DIM_Y_FIELD) || "dimY";
