@@ -401,6 +401,9 @@ export async function POST(req: Request) {
   return json(
     {
       status: result.status,
+      // DigiFabster prices asynchronously: when no prices are back yet, the
+      // caller (Bubble) should reschedule this call until shouldRetry is false.
+      shouldRetry: result.prices.length === 0,
       traceId,
       request: { modelId, materialId, materialSource, count: quantities, leadTime },
       selectedPrice,

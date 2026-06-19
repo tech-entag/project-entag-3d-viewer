@@ -10,10 +10,12 @@ export const config = {
 const createTraceId = () => `autodesk-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 const AUTO_FOLLOWUP_ATTEMPTS = Math.max(1, Number(process.env.AUTO_MODELID_ATTEMPTS || 5));
 const AUTO_FOLLOWUP_INTERVAL_MS = Math.max(0, Number(process.env.AUTO_MODELID_INTERVAL_MS || 5000));
-// Once the model is analysed (thumbnail/dims written), also fetch the DigiFabster
-// batch price and write it to Bubble — so one /api/autodesk call returns
-// image + dims + price. Disable with AUTO_BATCH_PRICE=false.
-const AUTO_BATCH_PRICE_ENABLED = process.env.AUTO_BATCH_PRICE !== "false";
+// Pricing is DECOUPLED: DigiFabster computes batch prices asynchronously, often
+// longer than one request allows, so /api/autodesk no longer blocks on it.
+// Bubble calls /api/digifabster-batch-price on a schedule/retry instead (it
+// auto-resolves material/tolerance/lead_time and writes the order price).
+// Opt back into inline pricing with AUTO_BATCH_PRICE=true.
+const AUTO_BATCH_PRICE_ENABLED = process.env.AUTO_BATCH_PRICE === "true";
 
 const traceTimeline = new Map<string, string[]>();
 
