@@ -21,6 +21,10 @@ const DEFAULT_BUBBLE_COST_FIELD = "[price]manufacturingCost";
 // Used when neither the body nor DIGIFABSTER_DEFAULT_LEAD_TIME_IDS supplies one.
 const DEFAULT_LEAD_TIME_IDS = "0e24c89a-7abd-4450-b383-b94afe676a82";
 
+// Keys the preselection config carries that batch_price/material rejects
+// ("This field is not allowed here."). Stripped before the price call.
+const DISALLOWED_CONFIG_KEYS = ["execution", "lead_time"];
+
 /* ------------------------------------------------------------------ */
 /*  HTTP helpers                                                      */
 /* ------------------------------------------------------------------ */
@@ -190,11 +194,13 @@ export async function POST(req: Request) {
 
   /* ---- material_id: body / env, else DigiFabster preselection (auto-pick) ---- */
   let materialId = positiveInt(body.materialId, body.material_id, process.env.DIGIFABSTER_DEFAULT_MATERIAL_ID);
+  let preselectionConfig: Record<string, unknown> | null = null;
   let materialSource: "request" | "preselection" = "request";
   if (!materialId) {
     try {
       const preselection = await getDigifabsterPreselection(modelId, traceId);
       materialId = preselection.material;
+      preselectionConfig = preselection.config;
       materialSource = "preselection";
       if (!materialId) {
         return json(
@@ -247,11 +253,10 @@ export async function POST(req: Request) {
   const count = toIntList(body.count ?? body.counts ?? body.quantities, 10);
   const quantities = count.length > 0 ? count : [1];
 
-  /* ---- config: minimal + curated only ----
-   * batch_price's config validator only needs `tolerance` and rejects extra
-   * fields (e.g. the preselection config's `execution`/`lead_time`). So we do
-   * NOT forward the raw preselection config — we send tolerance plus whatever
-   * the caller explicitly curates via DIGIFABSTER_DEFAULT_CONFIG / body.config. */
+  /* ---- config: preselection config (carries required fields like `thickness`)
+   * with batch_price-rejected keys stripped, then env/body overrides + tolerance.
+   * The preselection config also contains `execution`/`lead_time`, which
+   * batch_price rejects ("not allowed here") — so those are removed. */
   const envDefaultConfig = (() => {
     const raw = process.env.DIGIFABSTER_DEFAULT_CONFIG;
     if (!raw || !raw.trim()) return null;
@@ -265,10 +270,14 @@ export async function POST(req: Request) {
     }
   })();
   const mergedConfig: Record<string, unknown> = {
+    ...(preselectionConfig ?? {}),
     ...(envDefaultConfig ?? {}),
     ...(asRecord(body.config) ?? {}),
   };
-  // DigiFabster batch_price requires `config.tolerance` (a tolerance id).
+  // batch_price rejects these keys that the preselection config carries.
+  for (const key of DISALLOWED_CONFIG_KEYS) delete mergedConfig[key];
+  // DigiFabster batch_price requires `config.tolerance` (a tolerance id) — the
+  // preselection config doesn't include it.
   const toleranceId = pickString(body.tolerance, body.tolerance_id, process.env.DIGIFABSTER_DEFAULT_TOLERANCE_ID);
   if (toleranceId && mergedConfig.tolerance === undefined) {
     mergedConfig.tolerance = toleranceId;

@@ -31,9 +31,10 @@ interface Captured {
   bubblePatch: { url: string; body: Json } | null;
 }
 
-// Mirrors a real preselection config: carries fields batch_price rejects
-// (execution / lead_time), so the route must NOT forward it verbatim.
-const PRESELECTION_CONFIG: Json = { execution: [1], lead_time: "x", wall_thickness: 2 };
+// Mirrors a real preselection config: a required field (thickness) plus fields
+// batch_price rejects (execution / lead_time). The route must forward thickness
+// but strip the disallowed keys.
+const PRESELECTION_CONFIG: Json = { thickness: 3, execution: [1], lead_time: "x" };
 
 const readBuffer = async (req: IncomingMessage): Promise<Buffer> => {
   const chunks: Buffer[] = [];
@@ -252,11 +253,16 @@ const run = async () => {
     const request2 = data2.request as Json;
     assert.equal(request2.materialSource, "preselection", "material resolved via preselection");
     assert.equal(request2.materialId, MATERIAL_ID, "material id comes from preselection");
-    // The raw preselection config (execution/lead_time/etc.) must NOT be forwarded —
-    // batch_price rejects those. Only the curated tolerance should be sent.
+    // Preselection config is forwarded (thickness kept) but batch_price-rejected
+    // keys (execution/lead_time) are stripped, and tolerance is injected.
     const sentConfig = (captured.lastBatchPriceBody as Json).config as Json;
-    assert.deepEqual(sentConfig, { tolerance: "tol-standard-id" }, "only tolerance is sent in config");
-    assert.equal(sentConfig.execution, undefined, "preselection config fields are not forwarded");
+    assert.deepEqual(
+      sentConfig,
+      { thickness: 3, tolerance: "tol-standard-id" },
+      "forwards preselection config minus disallowed keys, plus tolerance",
+    );
+    assert.equal(sentConfig.execution, undefined, "disallowed `execution` is stripped");
+    assert.equal(sentConfig.lead_time, undefined, "disallowed `lead_time` is stripped");
     assert.equal(data2.status, "priced", "scenario 2 priced");
 
     console.log("[suite] Scenario 2 PASS — preselection auto-material verified");
