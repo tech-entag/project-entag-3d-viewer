@@ -1,5 +1,6 @@
 import { createBucket, fetchAccessToken, finalizeUpload, obtainSignedUrl, startTranslation, uploadFile } from "./autodesk_helpers";
 import { DigifabsterSyncError, syncNativeSourceToDigifabster } from "./autodesk_helpers/digifabster-sync";
+import { enqueuePriceJob } from "./autodesk_helpers/price-job-store";
 import { fetchFileAndConvert } from "./autodesk_helpers/download";
 import { classifySourceFormat, shouldSkipAutodeskTranslationForFormat } from "./autodesk_helpers/format-map";
 
@@ -228,17 +229,31 @@ const runAutoBubbleWriteback = async (params: {
         orderPartUpdate?.status === "updated" && (dimensionsWritten || thumbnailWritten);
       if (modelComplete) {
         const objectModelId = quote?.upload?.objectModelId;
-        const price =
-          AUTO_BATCH_PRICE_ENABLED && typeof objectModelId === "number"
-            ? await runAutoBatchPrice({
-                requestOrigin: params.requestOrigin,
-                objectModelId,
-                partId: params.partId,
-                version: params.version,
-                traceId: params.traceId,
-                orderId: params.orderId,
-              })
-            : { status: "disabled" };
+        // Pricing is decoupled: enqueue a background price job for the cron
+        // scheduler (workers/price-scheduler) to drain. Inline pricing stays an
+        // opt-in escape hatch via AUTO_BATCH_PRICE=true.
+        let price: unknown = { status: "disabled" };
+        if (typeof objectModelId === "number") {
+          if (AUTO_BATCH_PRICE_ENABLED) {
+            price = await runAutoBatchPrice({
+              requestOrigin: params.requestOrigin,
+              objectModelId,
+              partId: params.partId,
+              version: params.version,
+              traceId: params.traceId,
+              orderId: params.orderId,
+            });
+          } else if (params.orderId) {
+            price = await enqueuePriceJob({
+              objectModelId,
+              orderId: params.orderId,
+              partId: params.partId,
+              version: params.version,
+            });
+          } else {
+            price = { status: "skipped", reason: "missing_order_id" };
+          }
+        }
 
         return {
           status: "updated",

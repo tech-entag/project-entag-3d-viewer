@@ -1,0 +1,29 @@
+# Cloudflare Cron Worker that drains pending batch-price jobs from R2.
+# Deploy SEPARATELY from the Pages project:
+#   wrangler deploy --config workers/price-scheduler/wrangler.toml
+#
+# It shares the same R2 bucket as the Pages app and calls the Pages endpoint
+# /api/digifabster-batch-price, so DigiFabster/Bubble secrets live in the Pages
+# project, not here.
+
+name = "entag-price-scheduler"
+main = "index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# Run every minute. Each tick drains up to PRICE_JOB_BATCH_SIZE jobs.
+[triggers]
+crons = ["*/1 * * * *"]
+
+# Same bucket the Pages app writes price-jobs/ into.
+[[r2_buckets]]
+binding = "BLOB_BUCKET"
+bucket_name = "entag-3d-viewer"
+
+[vars]
+# Public base URL of the Pages deployment that hosts /api/digifabster-batch-price.
+PAGES_BASE_URL = "https://project-entag-3d-viewer.pages.dev"
+# Abandon jobs older than this (ms). Default 15 min.
+PRICE_JOB_MAX_AGE_MS = "900000"
+# Max jobs per cron tick.
+PRICE_JOB_BATCH_SIZE = "10"

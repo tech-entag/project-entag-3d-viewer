@@ -20,7 +20,9 @@
     "test:viewer:guardrail": "pnpm test:viewer:ui && pnpm test:viewer:contracts",
     "build:cloudflare": "vite build --config vite.config.cloudflare.ts",
     "pages:dev": "pnpm build:cloudflare && wrangler pages dev",
-    "pages:deploy": "pnpm build:cloudflare && wrangler pages deploy"
+    "pages:deploy": "pnpm build:cloudflare && wrangler pages deploy",
+    "price-scheduler:deploy": "wrangler deploy --config workers/price-scheduler/wrangler.toml",
+    "price-scheduler:tail": "wrangler tail --config workers/price-scheduler/wrangler.toml"
   },
   "dependencies": {
     "@makeorbreakshop/any-nest": "^1.1.0",
