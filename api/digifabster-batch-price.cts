@@ -190,13 +190,11 @@ export async function POST(req: Request) {
 
   /* ---- material_id: body / env, else DigiFabster preselection (auto-pick) ---- */
   let materialId = positiveInt(body.materialId, body.material_id, process.env.DIGIFABSTER_DEFAULT_MATERIAL_ID);
-  let preselectionConfig: Record<string, unknown> | null = null;
   let materialSource: "request" | "preselection" = "request";
   if (!materialId) {
     try {
       const preselection = await getDigifabsterPreselection(modelId, traceId);
       materialId = preselection.material;
-      preselectionConfig = preselection.config;
       materialSource = "preselection";
       if (!materialId) {
         return json(
@@ -249,7 +247,11 @@ export async function POST(req: Request) {
   const count = toIntList(body.count ?? body.counts ?? body.quantities, 10);
   const quantities = count.length > 0 ? count : [1];
 
-  /* ---- config: preselection default <- env default <- body override ---- */
+  /* ---- config: minimal + curated only ----
+   * batch_price's config validator only needs `tolerance` and rejects extra
+   * fields (e.g. the preselection config's `execution`/`lead_time`). So we do
+   * NOT forward the raw preselection config — we send tolerance plus whatever
+   * the caller explicitly curates via DIGIFABSTER_DEFAULT_CONFIG / body.config. */
   const envDefaultConfig = (() => {
     const raw = process.env.DIGIFABSTER_DEFAULT_CONFIG;
     if (!raw || !raw.trim()) return null;
@@ -263,12 +265,10 @@ export async function POST(req: Request) {
     }
   })();
   const mergedConfig: Record<string, unknown> = {
-    ...(preselectionConfig ?? {}),
     ...(envDefaultConfig ?? {}),
     ...(asRecord(body.config) ?? {}),
   };
-  // DigiFabster batch_price requires `config.tolerance` (a tolerance id). Fill it
-  // from the body/env default if the preselection config didn't already carry one.
+  // DigiFabster batch_price requires `config.tolerance` (a tolerance id).
   const toleranceId = pickString(body.tolerance, body.tolerance_id, process.env.DIGIFABSTER_DEFAULT_TOLERANCE_ID);
   if (toleranceId && mergedConfig.tolerance === undefined) {
     mergedConfig.tolerance = toleranceId;

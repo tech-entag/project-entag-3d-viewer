@@ -31,7 +31,9 @@ interface Captured {
   bubblePatch: { url: string; body: Json } | null;
 }
 
-const PRESELECTION_CONFIG: Json = { wall_thickness: 2, infill: 20 };
+// Mirrors a real preselection config: carries fields batch_price rejects
+// (execution / lead_time), so the route must NOT forward it verbatim.
+const PRESELECTION_CONFIG: Json = { execution: [1], lead_time: "x", wall_thickness: 2 };
 
 const readBuffer = async (req: IncomingMessage): Promise<Buffer> => {
   const chunks: Buffer[] = [];
@@ -238,6 +240,7 @@ const run = async () => {
         objectModelId: MODEL_ID,
         leadTime: [LEAD_TIME_A],
         count: [1],
+        tolerance: "tol-standard-id",
         traceId: "batch-price-e2e-preselect",
       }),
     });
@@ -249,11 +252,11 @@ const run = async () => {
     const request2 = data2.request as Json;
     assert.equal(request2.materialSource, "preselection", "material resolved via preselection");
     assert.equal(request2.materialId, MATERIAL_ID, "material id comes from preselection");
-    assert.deepEqual(
-      (captured.lastBatchPriceBody as Json).config,
-      PRESELECTION_CONFIG,
-      "preselection config forwarded into batch_price",
-    );
+    // The raw preselection config (execution/lead_time/etc.) must NOT be forwarded —
+    // batch_price rejects those. Only the curated tolerance should be sent.
+    const sentConfig = (captured.lastBatchPriceBody as Json).config as Json;
+    assert.deepEqual(sentConfig, { tolerance: "tol-standard-id" }, "only tolerance is sent in config");
+    assert.equal(sentConfig.execution, undefined, "preselection config fields are not forwarded");
     assert.equal(data2.status, "priced", "scenario 2 priced");
 
     console.log("[suite] Scenario 2 PASS — preselection auto-material verified");
