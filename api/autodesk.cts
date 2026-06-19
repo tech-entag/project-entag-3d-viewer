@@ -10,6 +10,10 @@ export const config = {
 const createTraceId = () => `autodesk-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 const AUTO_FOLLOWUP_ATTEMPTS = Math.max(1, Number(process.env.AUTO_MODELID_ATTEMPTS || 5));
 const AUTO_FOLLOWUP_INTERVAL_MS = Math.max(0, Number(process.env.AUTO_MODELID_INTERVAL_MS || 5000));
+// Once the model is analysed (thumbnail/dims written), also fetch the DigiFabster
+// batch price and write it to Bubble — so one /api/autodesk call returns
+// image + dims + price. Disable with AUTO_BATCH_PRICE=false.
+const AUTO_BATCH_PRICE_ENABLED = process.env.AUTO_BATCH_PRICE !== "false";
 
 const traceTimeline = new Map<string, string[]>();
 
@@ -68,6 +72,64 @@ const createNative2dThumbnailDataUrl = (fileName: string, extension: string) => 
   return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
 };
 
+/**
+ * Best-effort: once the model is analysed, get the DigiFabster batch price and
+ * write it to Bubble. Material is auto-picked by DigiFabster (preselection),
+ * lead-time comes from DIGIFABSTER_DEFAULT_LEAD_TIME_IDS, and the cost is PATCHed
+ * onto the same orderpart that just received the thumbnail/dims. Never throws —
+ * a price failure must not undo the thumbnail/dims write that already succeeded.
+ */
+const runAutoBatchPrice = async (params: {
+  requestOrigin: string;
+  objectModelId: number;
+  partId: string;
+  version: string;
+  traceId: string;
+  orderId: string | null;
+}) => {
+  const endpoint = `${params.requestOrigin}/api/digifabster-batch-price`;
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        objectModelId: params.objectModelId,
+        // Cost is PATCHed onto the Bubble `order` thing (route defaults handle
+        // thing type `order` + field `[price]manufacturingCost`). Without an
+        // orderId the route still returns the price but skips the Bubble write.
+        ...(params.orderId ? { orderId: params.orderId } : {}),
+        part_id: params.partId,
+        version: params.version,
+        traceId: `${params.traceId}-price`,
+      }),
+    });
+
+    const text = await response.text();
+    let data: any = null;
+    if (text.trim()) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { raw: text.slice(0, 2000) };
+      }
+    }
+
+    return {
+      status: data?.bubble?.status || data?.status || "unknown",
+      httpStatus: response.status,
+      materialSource: data?.request?.materialSource ?? null,
+      selectedPrice: data?.selectedPrice ?? null,
+      bubble: data?.bubble ?? null,
+      ...(response.ok ? {} : { error: data?.error ?? null }),
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      error: error instanceof Error ? error.message : "Unknown batch price error",
+    };
+  }
+};
+
 const runAutoBubbleWriteback = async (params: {
   requestOrigin: string;
   urn: string;
@@ -79,6 +141,7 @@ const runAutoBubbleWriteback = async (params: {
   sourceUrl: string;
   sourceFileName: string;
   quoteTarget: "step" | "dwg" | null;
+  orderId: string | null;
 }) => {
   const endpoint = `${params.requestOrigin}/api/conversion-status`;
   let lastSnapshot: Record<string, unknown> | null = null;
@@ -162,11 +225,25 @@ const runAutoBubbleWriteback = async (params: {
       const modelComplete =
         orderPartUpdate?.status === "updated" && (dimensionsWritten || thumbnailWritten);
       if (modelComplete) {
+        const objectModelId = quote?.upload?.objectModelId;
+        const price =
+          AUTO_BATCH_PRICE_ENABLED && typeof objectModelId === "number"
+            ? await runAutoBatchPrice({
+                requestOrigin: params.requestOrigin,
+                objectModelId,
+                partId: params.partId,
+                version: params.version,
+                traceId: params.traceId,
+                orderId: params.orderId,
+              })
+            : { status: "disabled" };
+
         return {
           status: "updated",
           attempts: attempt,
           endpoint,
           last: lastSnapshot,
+          price,
         };
       }
 
@@ -212,6 +289,12 @@ export async function POST(req: Request) {
     const requestOrigin = new URL(req.url).origin;
     const body = await req.json();
     const { url, part_id, version, client_id, client_secret, dry_run, auto_modelid, autoModelId } = body;
+    // Bubble `order` thing id — the auto batch-price PATCHes `[price]manufacturingCost`
+    // onto it. Optional; when absent the price is computed but not written back.
+    const bubbleOrderId =
+      [body?.order_id, body?.orderId, body?.bubble_order_id, body?.bubbleOrderId].find(
+        (v) => typeof v === "string" && v.trim(),
+      ) || null;
     if (typeof body?.traceId === "string" && body.traceId.trim()) {
       traceId = body.traceId.trim();
     }
@@ -341,6 +424,7 @@ export async function POST(req: Request) {
             sourceUrl: url,
             sourceFileName,
             quoteTarget: null,
+            orderId: bubbleOrderId,
           })
         : {
             status: "disabled",
@@ -461,6 +545,7 @@ export async function POST(req: Request) {
           sourceUrl: url,
           sourceFileName,
           quoteTarget: classification.quote.targetFormat,
+          orderId: bubbleOrderId,
         })
       : {
           status: "disabled",

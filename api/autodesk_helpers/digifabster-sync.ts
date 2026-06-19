@@ -1381,4 +1381,285 @@ export const getDigifabsterModelThumbnail = async (
   };
 };
 
+/* ------------------------------------------------------------------ */
+/*  Batch price (POST /v2/batch_price/material/)                       */
+/* ------------------------------------------------------------------ */
+
+/** Money breakdown for a single (priority × quantity) cell. Mirrors PriceInfo. */
+export interface DigifabsterBatchPriceInfo {
+  nakedPrice: number;
+  startupCost: number;
+  postProductionPrice: number;
+  priorityPrice: number;
+  count: number;
+  subtotal: number;
+  withoutStartupCost: number;
+  tax: number;
+  taxPercent: number;
+  discountPercent: number;
+  discountValue: number;
+  total: number;
+  pricePerItem: number;
+}
+
+export interface DigifabsterBatchPriceItem {
+  quantity: number;
+  priceInfo: DigifabsterBatchPriceInfo;
+}
+
+/** One lead-time priority, with a price row per requested quantity. */
+export interface DigifabsterBatchPriceForPriority {
+  priorityId: string;
+  priorityName: string;
+  prices: DigifabsterBatchPriceItem[];
+}
+
+export interface DigifabsterBatchPriceResult {
+  /** "priced" once DigiFabster returns 200; "analysing" while it still returns 202. */
+  status: "priced" | "analysing";
+  prices: DigifabsterBatchPriceForPriority[];
+  analysingErrors: Array<{ code: string; text: string | null }>;
+  warnings: Array<{ code: string; text: string | null }>;
+  batchCapacity: number | null;
+  raw: unknown;
+}
+
+const parseBatchPriceInfo = (value: unknown): DigifabsterBatchPriceInfo => {
+  const info = asResponseRecord(value);
+  const num = (v: unknown) => optionalNumber(v) ?? 0;
+  return {
+    nakedPrice: num(info.naked_price),
+    startupCost: num(info.startup_cost),
+    postProductionPrice: num(info.post_production_price),
+    priorityPrice: num(info.priority_price),
+    count: num(info.count),
+    subtotal: num(info.subtotal),
+    withoutStartupCost: num(info.without_startup_cost),
+    tax: num(info.tax),
+    taxPercent: num(info.tax_percent),
+    discountPercent: num(info.discount_percent),
+    discountValue: num(info.discount_value),
+    total: num(info.total),
+    pricePerItem: num(info.price_per_item),
+  };
+};
+
+const parseAnalyzingErrors = (value: unknown): Array<{ code: string; text: string | null }> =>
+  (Array.isArray(value) ? value : []).map((entry) => {
+    const record = asResponseRecord(entry);
+    return { code: optionalString(record.code) ?? "", text: optionalString(record.text) };
+  });
+
+const parseBatchPriceResponse = (data: unknown): DigifabsterBatchPriceResult => {
+  const record = asResponseRecord(data);
+  const prices: DigifabsterBatchPriceForPriority[] = (Array.isArray(record.prices) ? record.prices : []).map(
+    (item) => {
+      const priority = asResponseRecord(item);
+      const rows = Array.isArray(priority.priority_prices) ? priority.priority_prices : [];
+      return {
+        priorityId: optionalString(priority.priority_id) ?? "",
+        priorityName: optionalString(priority.priority_name_for_user) ?? "",
+        prices: rows.map((row) => {
+          const cell = asResponseRecord(row);
+          return {
+            quantity: optionalNumber(cell.quantity) ?? 0,
+            priceInfo: parseBatchPriceInfo(cell.price_info),
+          };
+        }),
+      };
+    },
+  );
+
+  return {
+    status: "priced",
+    prices,
+    analysingErrors: parseAnalyzingErrors(record.analysing_errors),
+    warnings: parseAnalyzingErrors(record.warnings),
+    batchCapacity: optionalNumber(record.batch_capacity),
+    raw: data,
+  };
+};
+
+/* ------------------------------------------------------------------ */
+/*  Preselection (POST /v2/preselection/) — DigiFabster auto-picks the  */
+/*  default material + config for an analysed model.                    */
+/* ------------------------------------------------------------------ */
+
+export interface DigifabsterPreselection {
+  /** True once DigiFabster has finished analysing the geometry. */
+  isReady: boolean;
+  /** The auto-picked material id (null until ready / if none). */
+  material: number | null;
+  /** The default per-material config to feed straight into batch price. */
+  config: Record<string, unknown> | null;
+}
+
+/**
+ * Ask DigiFabster which material it auto-selects for a model (the same
+ * `preselection/` call its own frontend makes). Also doubles as the
+ * analysis-ready gate via `isReady`.
+ */
+export const getDigifabsterPreselection = async (
+  modelId: number,
+  traceId?: string,
+): Promise<DigifabsterPreselection> => {
+  const headers = await buildDigifabsterHeaders();
+  const url = `${resolveDigifabsterBaseUrl()}/v2/preselection/`;
+
+  logStep(traceId, "preselection.start", { modelId });
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ models_ids: [modelId] }),
+  });
+
+  const text = await response.text();
+  let data: unknown = null;
+  if (text.trim()) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { raw: text.slice(0, 2_000) };
+    }
+  }
+
+  if (!response.ok) {
+    logStep(traceId, "preselection.failed", { modelId, status: response.status });
+    throw new DigifabsterSyncError({
+      message: `DigiFabster preselection failed for model ${modelId}.`,
+      status: response.status || 502,
+      code: "digifabster_preselection_failed",
+      details: typeof data === "object" ? JSON.stringify(data).slice(0, 2_000) : null,
+      retryable: response.status >= 500,
+    });
+  }
+
+  // Response shape: { "<modelId>": { is_ready, material, config } }
+  const record = asResponseRecord(data);
+  const entry = asResponseRecord(record[String(modelId)]);
+  const config = asResponseRecord(entry.config);
+
+  const result: DigifabsterPreselection = {
+    isReady: entry.is_ready === true,
+    material: optionalNumber(entry.material),
+    config: Object.keys(config).length > 0 ? config : null,
+  };
+
+  logStep(traceId, "preselection.success", {
+    modelId,
+    isReady: result.isReady,
+    material: result.material,
+    hasConfig: result.config !== null,
+  });
+
+  return result;
+};
+
+/**
+ * Bulk-price an uploaded model across a set of quantities × lead-time priorities.
+ *
+ * DigiFabster returns `202` (no body) while it is still analysing the model and
+ * `200` with the price matrix once ready, so this polls a bounded number of
+ * times (DIGIFABSTER_BATCH_PRICE_ATTEMPTS / _INTERVAL_MS). If it is still
+ * analysing when attempts run out, it resolves with status "analysing" rather
+ * than throwing, so the caller can retry later.
+ */
+export const getDigifabsterBatchPrice = async (params: {
+  modelId: number;
+  materialId: number;
+  count: number[];
+  leadTime: string[];
+  config?: Record<string, unknown>;
+  traceId?: string;
+}): Promise<DigifabsterBatchPriceResult> => {
+  const headers = await buildDigifabsterHeaders();
+  const url = `${resolveDigifabsterBaseUrl()}/v2/batch_price/material/`;
+
+  const body: Record<string, unknown> = {
+    model_id: params.modelId,
+    material_id: params.materialId,
+    count: params.count,
+    lead_time: params.leadTime,
+  };
+  if (params.config && Object.keys(params.config).length > 0) {
+    body.config = params.config;
+  }
+
+  const maxAttempts = parsePositiveInt(process.env.DIGIFABSTER_BATCH_PRICE_ATTEMPTS, 5);
+  const intervalMs = parsePositiveInt(process.env.DIGIFABSTER_BATCH_PRICE_INTERVAL_MS, 3000);
+
+  logStep(params.traceId, "batch_price.start", {
+    modelId: params.modelId,
+    materialId: params.materialId,
+    count: params.count,
+    leadTime: params.leadTime,
+    maxAttempts,
+  });
+
+  let lastData: unknown = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    const text = await response.text();
+    let data: unknown = null;
+    if (text.trim()) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = { raw: text.slice(0, 2_000) };
+      }
+    }
+    lastData = data;
+
+    if (response.status === 202) {
+      logStep(params.traceId, "batch_price.analysing", { modelId: params.modelId, attempt });
+      if (attempt < maxAttempts) {
+        await wait(intervalMs);
+        continue;
+      }
+      return {
+        status: "analysing",
+        prices: [],
+        analysingErrors: [],
+        warnings: [],
+        batchCapacity: null,
+        raw: data,
+      };
+    }
+
+    if (!response.ok) {
+      logStep(params.traceId, "batch_price.failed", { modelId: params.modelId, status: response.status });
+      throw new DigifabsterSyncError({
+        message: `DigiFabster batch price request failed for model ${params.modelId}.`,
+        status: response.status || 502,
+        code: "digifabster_batch_price_failed",
+        details: typeof data === "object" ? JSON.stringify(data).slice(0, 2_000) : null,
+        retryable: response.status >= 500,
+      });
+    }
+
+    const parsed = parseBatchPriceResponse(data);
+    logStep(params.traceId, "batch_price.success", {
+      modelId: params.modelId,
+      priorities: parsed.prices.length,
+      analysingErrors: parsed.analysingErrors.length,
+    });
+    return parsed;
+  }
+
+  return {
+    status: "analysing",
+    prices: [],
+    analysingErrors: [],
+    warnings: [],
+    batchCapacity: null,
+    raw: lastData,
+  };
+};
+
 export { DigifabsterSyncError };

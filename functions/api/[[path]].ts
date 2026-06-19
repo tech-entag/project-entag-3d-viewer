@@ -17,6 +17,7 @@
 import * as autodesk from "../../api/autodesk.cts";
 import * as bubbleTrigger from "../../api/bubble-trigger.cts";
 import * as conversionStatus from "../../api/conversion-status.cts";
+import * as digifabsterBatchPrice from "../../api/digifabster-batch-price.cts";
 import * as digifabsterOrder from "../../api/digifabster-order.cts";
 import * as digifabsterPriceTweak from "../../api/digifabster-price-tweak.cts";
 import * as viewerSource from "../../api/viewer-source.cts";
@@ -43,6 +44,7 @@ const ROUTES: Array<{ pattern: string; mod: RouteModule }> = [
   { pattern: "/api/autodesk", mod: autodesk },
   { pattern: "/api/bubble-trigger", mod: bubbleTrigger },
   { pattern: "/api/conversion-status", mod: conversionStatus },
+  { pattern: "/api/digifabster-batch-price", mod: digifabsterBatchPrice },
   { pattern: "/api/digifabster-order", mod: digifabsterOrder },
   { pattern: "/api/digifabster-price-tweak", mod: digifabsterPriceTweak },
   { pattern: "/api/viewer-source", mod: viewerSource },
