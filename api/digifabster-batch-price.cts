@@ -249,8 +249,31 @@ export async function POST(req: Request) {
   const count = toIntList(body.count ?? body.counts ?? body.quantities, 10);
   const quantities = count.length > 0 ? count : [1];
 
-  /* ---- config: body override, else the preselection default ---- */
-  const config = asRecord(body.config) ?? preselectionConfig ?? undefined;
+  /* ---- config: preselection default <- env default <- body override ---- */
+  const envDefaultConfig = (() => {
+    const raw = process.env.DIGIFABSTER_DEFAULT_CONFIG;
+    if (!raw || !raw.trim()) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : null;
+    } catch {
+      return null;
+    }
+  })();
+  const mergedConfig: Record<string, unknown> = {
+    ...(preselectionConfig ?? {}),
+    ...(envDefaultConfig ?? {}),
+    ...(asRecord(body.config) ?? {}),
+  };
+  // DigiFabster batch_price requires `config.tolerance` (a tolerance id). Fill it
+  // from the body/env default if the preselection config didn't already carry one.
+  const toleranceId = pickString(body.tolerance, body.tolerance_id, process.env.DIGIFABSTER_DEFAULT_TOLERANCE_ID);
+  if (toleranceId && mergedConfig.tolerance === undefined) {
+    mergedConfig.tolerance = toleranceId;
+  }
+  const config = Object.keys(mergedConfig).length > 0 ? mergedConfig : undefined;
 
   let result: DigifabsterBatchPriceResult;
   try {

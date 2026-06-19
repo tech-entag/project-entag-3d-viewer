@@ -25,6 +25,21 @@ BUBBLE_DATA_API_BASE_URL = "https://app.entag.co/version-test/api/1.1/obj"
 # sheet-nesting output, embed uploads). The DXF dedup cache does NOT need it.
 R2_PUBLIC_BASE_URL = ""
 
+# --- DigiFabster batch-price defaults (POST /v2/batch_price/material/) ---
+# These are machine-scoped and stable; material is auto-picked per model via
+# preselection. The batch-price route reads them as fallbacks when the request
+# body does not override them.
+
+# Delivery lead-time priority — "Standard" (machine-scoped, stable).
+DIGIFABSTER_DEFAULT_LEAD_TIME_IDS = "0e24c89a-7abd-4450-b383-b94afe676a82"
+
+# Tolerance selection. Active default = ISO 2768-Standard (sort_order 1).
+# DigiFabster requires config.tolerance; pass `tolerance` in the body to override.
+# Other options on this machine:
+#   Fine   (ISO 28768, requires drawings): 8e86287c-c28f-4af0-85f1-bdb8998f3e98
+#   Course (ISO 2768):                     4585cfd6-7463-4830-a18d-2761af3ed72f
+DIGIFABSTER_DEFAULT_TOLERANCE_ID = "78bd2907-7b21-466e-b612-8bf71336a9b5"
+
 # Cloudflare R2 bucket binding (replaces Vercel Blob). Create the bucket first:
 #   wrangler r2 bucket create entag-3d-viewer
 [[r2_buckets]]
