@@ -13,9 +13,9 @@ export const config = {
 // for production (or set BUBBLE_DATA_API_BASE_URL / pass it in the body).
 const DEFAULT_BUBBLE_DATA_API_BASE_URL = "https://app.entag.co/version-test/api/1.1/obj";
 
-// The price writes to the Bubble `order` thing, field `[price]manufacturingCost`.
-const DEFAULT_BUBBLE_PRICE_TYPE = "order";
-const DEFAULT_BUBBLE_COST_FIELD = "[price]manufacturingCost";
+// The price writes to the Bubble `OrderPart` thing, field `requestedPrice`.
+const DEFAULT_BUBBLE_PRICE_TYPE = "OrderPart";
+const DEFAULT_BUBBLE_COST_FIELD = "requestedPrice";
 
 // Delivery lead-time priority used by live batch_price/material calls that
 // return prices. Used when neither the body nor DIGIFABSTER_DEFAULT_LEAD_TIME_IDS
@@ -358,11 +358,15 @@ export async function POST(req: Request) {
   const bubbleCostField =
     pickString(body.bubble_manufacturing_cost_field, body.bubbleManufacturingCostField, process.env.BUBBLE_MANUFACTURING_COST_FIELD) ||
     DEFAULT_BUBBLE_COST_FIELD;
+  // The price now writes to the OrderPart thing, so its id (part_id) is the
+  // target. Explicit priceId still wins; order ids remain as fallbacks.
   const priceId = pickString(
     body.priceId,
     body.price_id,
     body.bubblePriceId,
     body.bubble_price_id,
+    body.partId,
+    body.part_id,
     body.orderId,
     body.order_id,
     body.bubbleOrderId,

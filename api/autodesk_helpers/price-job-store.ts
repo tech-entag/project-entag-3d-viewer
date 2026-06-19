@@ -11,8 +11,10 @@ import { hasStorage, putObject } from "../embed_helpers/blob-storage";
 
 export interface PriceJob {
   objectModelId: number;
-  orderId: string;
+  /** OrderPart id — the price write target (OrderPart.requestedPrice). */
   partId?: string;
+  /** Bubble order id (kept for reference / fallback). */
+  orderId?: string;
   version?: string;
   createdAt: number;
 }
@@ -22,8 +24,8 @@ export const priceJobKey = (objectModelId: number): string => `price-jobs/${obje
 /** Write (or refresh) a pending price job for the cron scheduler to drain. */
 export const enqueuePriceJob = async (params: {
   objectModelId: number;
-  orderId: string;
   partId?: string;
+  orderId?: string | null;
   version?: string;
 }): Promise<{ status: "queued" | "skipped" | "error"; reason?: string; key?: string }> => {
   if (!hasStorage()) {
@@ -32,8 +34,8 @@ export const enqueuePriceJob = async (params: {
 
   const job: PriceJob = {
     objectModelId: params.objectModelId,
-    orderId: params.orderId,
     partId: params.partId,
+    orderId: params.orderId ?? undefined,
     version: params.version,
     createdAt: Date.now(),
   };

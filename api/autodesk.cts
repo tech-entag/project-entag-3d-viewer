@@ -243,15 +243,14 @@ const runAutoBubbleWriteback = async (params: {
               traceId: params.traceId,
               orderId: params.orderId,
             });
-          } else if (params.orderId) {
+          } else {
+            // Price writes to the OrderPart (part_id), which is always present.
             price = await enqueuePriceJob({
               objectModelId,
-              orderId: params.orderId,
               partId: params.partId,
+              orderId: params.orderId,
               version: params.version,
             });
-          } else {
-            price = { status: "skipped", reason: "missing_order_id" };
           }
         }
 

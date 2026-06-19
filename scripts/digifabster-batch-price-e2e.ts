@@ -124,8 +124,8 @@ const startMockServer = async (captured: Captured): Promise<Server> => {
       return;
     }
 
-    // --- Bubble Data API: order PATCH ([price]manufacturingCost) ---
-    if (method === "PATCH" && url.startsWith("/api/1.1/obj/order/")) {
+    // --- Bubble Data API: OrderPart PATCH (requestedPrice) ---
+    if (method === "PATCH" && url.startsWith("/api/1.1/obj/OrderPart/")) {
       const raw = (await readBuffer(req)).toString("utf8");
       captured.bubblePatch = { url, body: raw.trim() ? (JSON.parse(raw) as Json) : {} };
       sendJson(res, 200, { status: "success" });
@@ -178,8 +178,8 @@ const run = async () => {
         leadTime: [LEAD_TIME_A, LEAD_TIME_B],
         count: [1, 5, 10],
         traceId: "batch-price-e2e",
-        // Bubble write target (thing type `order`, field `[price]manufacturingCost`).
-        orderId: "order-thing-123",
+        // Bubble write target (thing type `OrderPart`, field `requestedPrice`).
+        part_id: "orderpart-xyz",
         bubbleApiToken: "mock-bubble-token",
         bubbleDataApiBaseUrl: `${base}/api/1.1/obj`,
       }),
@@ -224,10 +224,10 @@ const run = async () => {
 
     const bubble = data.bubble as Json;
     assert.equal(bubble.status, "updated", "Bubble write should succeed");
-    assert.equal(bubble.field, "[price]manufacturingCost", "writes the [price]manufacturingCost field");
+    assert.equal(bubble.field, "requestedPrice", "writes the requestedPrice field");
     assert.ok(captured.bubblePatch, "Bubble server should have captured a PATCH");
-    assert.equal(captured.bubblePatch?.url, "/api/1.1/obj/order/order-thing-123", "PATCH targets the order thing");
-    assert.equal(captured.bubblePatch?.body["[price]manufacturingCost"], 55, "PATCH sets [price]manufacturingCost = 55");
+    assert.equal(captured.bubblePatch?.url, "/api/1.1/obj/OrderPart/orderpart-xyz", "PATCH targets the OrderPart thing");
+    assert.equal(captured.bubblePatch?.body.requestedPrice, 55, "PATCH sets requestedPrice = 55");
 
     console.log("\n[suite] Scenario 1 PASS — batch-price (202 -> 200, matrix parsed, price -> Bubble)");
     console.log(JSON.stringify({ selectedPrice: data.selectedPrice, bubble: data.bubble }, null, 2));
