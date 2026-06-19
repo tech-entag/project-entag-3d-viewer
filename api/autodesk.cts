@@ -433,6 +433,7 @@ export async function POST(req: Request) {
 
       const thumbnailDataUrl = createNative2dThumbnailDataUrl(sourceFileName, classification.extension);
 
+      const autoPrice = (autoFollowup as { price?: Record<string, any> } | null)?.price ?? null;
       logStep(traceId, "request.completed", {
         urn: nativeUrn,
         sourceFormat: classification.extension,
@@ -441,6 +442,11 @@ export async function POST(req: Request) {
         quoteTarget: null,
         directNativeSync: true,
         autoFollowupStatus: autoFollowup?.status || null,
+        priceStatus: autoPrice?.status ?? null,
+        priceBubbleStatus: autoPrice?.bubble?.status ?? null,
+        priceSelectedCost: autoPrice?.selectedPrice?.cost ?? null,
+        priceMaterialSource: autoPrice?.materialSource ?? null,
+        priceError: autoPrice?.error ?? null,
       });
 
       return new Response(JSON.stringify({
