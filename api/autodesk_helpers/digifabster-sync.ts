@@ -1572,6 +1572,8 @@ export const getDigifabsterBatchPrice = async (params: {
   leadTime: string[];
   config?: Record<string, unknown>;
   traceId?: string;
+  /** Override the internal poll attempt count (e.g. 1 for a single fast call). */
+  maxAttempts?: number;
 }): Promise<DigifabsterBatchPriceResult> => {
   const headers = await buildDigifabsterHeaders();
   const url = `${resolveDigifabsterBaseUrl()}/v2/batch_price/material/`;
@@ -1586,7 +1588,10 @@ export const getDigifabsterBatchPrice = async (params: {
     body.config = params.config;
   }
 
-  const maxAttempts = parsePositiveInt(process.env.DIGIFABSTER_BATCH_PRICE_ATTEMPTS, 5);
+  const maxAttempts =
+    params.maxAttempts && params.maxAttempts > 0
+      ? Math.floor(params.maxAttempts)
+      : parsePositiveInt(process.env.DIGIFABSTER_BATCH_PRICE_ATTEMPTS, 5);
   const intervalMs = parsePositiveInt(process.env.DIGIFABSTER_BATCH_PRICE_INTERVAL_MS, 3000);
 
   logStep(params.traceId, "batch_price.start", {

@@ -286,6 +286,10 @@ export async function POST(req: Request) {
   }
   const config = Object.keys(mergedConfig).length > 0 ? mergedConfig : undefined;
 
+  // Optional per-call poll override (the cron scheduler passes attempts=1 so each
+  // call returns fast and the scheduler provides the retry cadence).
+  const attemptsOverride = positiveInt(body.attempts, body.maxAttempts) ?? undefined;
+
   let result: DigifabsterBatchPriceResult;
   try {
     result = await getDigifabsterBatchPrice({
@@ -295,6 +299,7 @@ export async function POST(req: Request) {
       leadTime,
       config,
       traceId,
+      maxAttempts: attemptsOverride,
     });
   } catch (error) {
     if (error instanceof DigifabsterSyncError) {
