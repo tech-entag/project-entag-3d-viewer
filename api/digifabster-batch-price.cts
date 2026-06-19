@@ -17,9 +17,11 @@ const DEFAULT_BUBBLE_DATA_API_BASE_URL = "https://app.entag.co/version-test/api/
 const DEFAULT_BUBBLE_PRICE_TYPE = "order";
 const DEFAULT_BUBBLE_COST_FIELD = "[price]manufacturingCost";
 
-// Standard delivery lead-time priority (UUID seen across live DigiFabster calls).
-// Used when neither the body nor DIGIFABSTER_DEFAULT_LEAD_TIME_IDS supplies one.
-const DEFAULT_LEAD_TIME_IDS = "0e24c89a-7abd-4450-b383-b94afe676a82";
+// Delivery lead-time priority used by live batch_price/material calls that
+// return prices. Used when neither the body nor DIGIFABSTER_DEFAULT_LEAD_TIME_IDS
+// supplies one. (A wrong/foreign priority id yields an empty price matrix with
+// no error, so this must match the machine the priced material lives on.)
+const DEFAULT_LEAD_TIME_IDS = "8fcabd8a-b22e-4b5e-9a7c-9e686cc00fcf";
 
 // Keys the preselection config carries that batch_price/material rejects
 // ("This field is not allowed here."). Stripped before the price call.

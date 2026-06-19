@@ -30,8 +30,10 @@ R2_PUBLIC_BASE_URL = ""
 # preselection. The batch-price route reads them as fallbacks when the request
 # body does not override them.
 
-# Delivery lead-time priority — "Standard" (machine-scoped, stable).
-DIGIFABSTER_DEFAULT_LEAD_TIME_IDS = "0e24c89a-7abd-4450-b383-b94afe676a82"
+# Delivery lead-time priority (machine-scoped). Must match the machine the
+# priced material lives on, else batch_price returns an empty matrix with no
+# error. This is the priority id that live batch_price calls return prices for.
+DIGIFABSTER_DEFAULT_LEAD_TIME_IDS = "8fcabd8a-b22e-4b5e-9a7c-9e686cc00fcf"
 
 # Tolerance selection. Active default = ISO 2768-Standard (sort_order 1).
 # DigiFabster requires config.tolerance; pass `tolerance` in the body to override.
