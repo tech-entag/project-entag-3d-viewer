@@ -409,6 +409,9 @@ export async function POST(req: Request) {
       warnings: result.warnings,
       batchCapacity: result.batchCapacity,
       bubble: bubbleUpdate,
+      // Surface the raw DigiFabster response when no prices came back, so an
+      // empty matrix can be diagnosed (stale model vs async compute vs shape).
+      ...(result.prices.length === 0 ? { debugRawResponse: result.raw, sentConfig: config ?? null } : {}),
     },
     200,
     req,
