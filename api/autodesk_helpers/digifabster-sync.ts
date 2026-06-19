@@ -1644,12 +1644,22 @@ export const getDigifabsterBatchPrice = async (params: {
     }
 
     const parsed = parseBatchPriceResponse(data);
+
+    // DigiFabster computes the price matrix asynchronously: it can return 200
+    // with an empty `prices` array (and no errors) while still working. Treat
+    // that like the 202 case and keep polling until prices appear.
+    if (parsed.prices.length === 0 && parsed.analysingErrors.length === 0 && attempt < maxAttempts) {
+      logStep(params.traceId, "batch_price.empty.retry", { modelId: params.modelId, attempt });
+      await wait(intervalMs);
+      continue;
+    }
+
     logStep(params.traceId, "batch_price.success", {
       modelId: params.modelId,
       priorities: parsed.prices.length,
       analysingErrors: parsed.analysingErrors.length,
     });
-    return parsed;
+    return parsed.prices.length === 0 ? { ...parsed, status: "analysing" } : parsed;
   }
 
   return {
