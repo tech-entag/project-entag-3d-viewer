@@ -4,6 +4,7 @@ import {
   getDigifabsterPreselection,
   type DigifabsterBatchPriceResult,
 } from "./autodesk_helpers/digifabster-sync";
+import { getPricingConfig } from "./autodesk_helpers/pricing-config";
 
 export const config = {
   maxDuration: 60,
@@ -69,6 +70,15 @@ const positiveInt = (...values: unknown[]): number | null => {
     if (value === null || value === undefined || value === "") continue;
     const n = Number(value);
     if (Number.isInteger(n) && n > 0) return n;
+  }
+  return null;
+};
+
+const positiveFloat = (...values: unknown[]): number | null => {
+  for (const value of values) {
+    if (value === null || value === undefined || value === "") continue;
+    const n = Number(value);
+    if (Number.isFinite(n) && n > 0) return n;
   }
   return null;
 };
@@ -334,16 +344,24 @@ export async function POST(req: Request) {
   const selectedCostRaw = selectedRow
     ? (selectedRow.priceInfo as unknown as Record<string, number>)[priceField]
     : undefined;
-  const selectedCost = typeof selectedCostRaw === "number" && Number.isFinite(selectedCostRaw) ? selectedCostRaw : null;
+  const baseCost = typeof selectedCostRaw === "number" && Number.isFinite(selectedCostRaw) ? selectedCostRaw : null;
+
+  // Apply the editable price multiplier (R2 config/pricing.json; body override
+  // for testing). The multiplied value is what's written to Bubble.
+  const multiplierOverride = positiveFloat(body.priceMultiplier, body.price_multiplier);
+  const priceMultiplier = multiplierOverride ?? (await getPricingConfig()).priceMultiplier;
+  const finalCost = baseCost !== null ? Math.round(baseCost * priceMultiplier * 100) / 100 : null;
 
   const selectedPrice =
-    selectedPriority && selectedRow && selectedCost !== null
+    selectedPriority && selectedRow && finalCost !== null
       ? {
           priorityId: selectedPriority.priorityId,
           priorityName: selectedPriority.priorityName,
           quantity: selectedRow.quantity,
           field: priceField,
-          cost: selectedCost,
+          baseCost,
+          multiplier: priceMultiplier,
+          cost: finalCost,
         }
       : null;
 

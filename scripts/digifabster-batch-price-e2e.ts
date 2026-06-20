@@ -182,6 +182,8 @@ const run = async () => {
         part_id: "orderpart-xyz",
         bubbleApiToken: "mock-bubble-token",
         bubbleDataApiBaseUrl: `${base}/api/1.1/obj`,
+        // Editable price multiplier (R2 config in prod; body override here).
+        priceMultiplier: 1.54,
       }),
     });
 
@@ -220,14 +222,17 @@ const run = async () => {
     assert.equal(selectedPrice.priorityId, LEAD_TIME_A, "selected the first lead-time priority");
     assert.equal(selectedPrice.quantity, 1, "selected the first requested quantity");
     assert.equal(selectedPrice.field, "total", "default money field is total");
-    assert.equal(selectedPrice.cost, 55, "selected cost = total for qty 1 @ Standard");
+    // Multiplier applied: base total 55 * 1.54 = 84.7.
+    assert.equal(selectedPrice.baseCost, 55, "base cost = total for qty 1 @ Standard");
+    assert.equal(selectedPrice.multiplier, 1.54, "multiplier echoed");
+    assert.equal(selectedPrice.cost, 84.7, "final cost = base * multiplier");
 
     const bubble = data.bubble as Json;
     assert.equal(bubble.status, "updated", "Bubble write should succeed");
     assert.equal(bubble.field, "requestedPrice", "writes the requestedPrice field");
     assert.ok(captured.bubblePatch, "Bubble server should have captured a PATCH");
     assert.equal(captured.bubblePatch?.url, "/api/1.1/obj/OrderPart/orderpart-xyz", "PATCH targets the OrderPart thing");
-    assert.equal(captured.bubblePatch?.body.requestedPrice, 55, "PATCH sets requestedPrice = 55");
+    assert.equal(captured.bubblePatch?.body.requestedPrice, 84.7, "PATCH sets multiplied requestedPrice");
 
     console.log("\n[suite] Scenario 1 PASS — batch-price (202 -> 200, matrix parsed, price -> Bubble)");
     console.log(JSON.stringify({ selectedPrice: data.selectedPrice, bubble: data.bubble }, null, 2));
