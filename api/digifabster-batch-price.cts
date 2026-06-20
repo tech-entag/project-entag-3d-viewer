@@ -204,8 +204,17 @@ export async function POST(req: Request) {
     );
   }
 
-  /* ---- material_id: body / env, else DigiFabster preselection (auto-pick) ---- */
-  let materialId = positiveInt(body.materialId, body.material_id, process.env.DIGIFABSTER_DEFAULT_MATERIAL_ID);
+  // Editable pricing defaults from R2 (config/pricing.json): multiplier, plus
+  // optional materialId / count / config to match the live batch_price body.
+  const pricingConfig = await getPricingConfig();
+
+  /* ---- material_id: body / R2 config / env, else DigiFabster preselection ---- */
+  let materialId = positiveInt(
+    body.materialId,
+    body.material_id,
+    pricingConfig.materialId,
+    process.env.DIGIFABSTER_DEFAULT_MATERIAL_ID,
+  );
   let preselectionConfig: Record<string, unknown> | null = null;
   let materialSource: "request" | "preselection" = "request";
   if (!materialId) {
@@ -261,8 +270,8 @@ export async function POST(req: Request) {
     );
   }
 
-  /* ---- count: quantities (max 10), from request, fallback [1] ---- */
-  const count = toIntList(body.count ?? body.counts ?? body.quantities, 10);
+  /* ---- count: quantities (max 10); body, else R2 config, else [1] ---- */
+  const count = toIntList(body.count ?? body.counts ?? body.quantities ?? pricingConfig.count, 10);
   const quantities = count.length > 0 ? count : [1];
 
   /* ---- config: preselection config (carries required fields like `thickness`)
@@ -283,6 +292,7 @@ export async function POST(req: Request) {
   })();
   const mergedConfig: Record<string, unknown> = {
     ...(preselectionConfig ?? {}),
+    ...(pricingConfig.config ?? {}),
     ...(envDefaultConfig ?? {}),
     ...(asRecord(body.config) ?? {}),
   };
@@ -349,7 +359,7 @@ export async function POST(req: Request) {
   // Apply the editable price multiplier (R2 config/pricing.json; body override
   // for testing). The multiplied value is what's written to Bubble.
   const multiplierOverride = positiveFloat(body.priceMultiplier, body.price_multiplier);
-  const priceMultiplier = multiplierOverride ?? (await getPricingConfig()).priceMultiplier;
+  const priceMultiplier = multiplierOverride ?? pricingConfig.priceMultiplier;
   const finalCost = baseCost !== null ? Math.round(baseCost * priceMultiplier * 100) / 100 : null;
 
   const selectedPrice =
