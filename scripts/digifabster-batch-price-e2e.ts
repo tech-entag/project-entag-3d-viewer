@@ -194,6 +194,8 @@ const run = async () => {
     /* ---- The poll loop: 202 then 200 ---- */
     assert.equal(captured.batchPriceCalls, 2, "should poll once (202) then succeed (200)");
     assert.equal(data.status, "priced", "final status should be priced");
+    assert.equal(data.materialId, MATERIAL_ID, "materialId surfaced at top level");
+    assert.equal(data.materialSource, "request", "materialSource surfaced at top level");
 
     /* ---- The upstream body carried the right fields ---- */
     const sent = captured.lastBatchPriceBody as Json;

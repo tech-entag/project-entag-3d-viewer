@@ -444,6 +444,10 @@ export async function POST(req: Request) {
       // caller (Bubble) should reschedule this call until shouldRetry is false.
       shouldRetry: result.prices.length === 0,
       traceId,
+      // Top-level for easy Bubble mapping (e.g. to feed place-order). Also kept
+      // under `request` for backward compatibility.
+      materialId,
+      materialSource,
       request: { modelId, materialId, materialSource, count: quantities, leadTime },
       selectedPrice,
       prices: result.prices,
