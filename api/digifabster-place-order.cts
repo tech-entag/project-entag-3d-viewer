@@ -135,7 +135,8 @@ const resolveCustomer = (
   };
 };
 
-const firstLeadTimeId = (raw: string | null): string | null => {
+/** First id from a (possibly comma-separated) env value. */
+const firstCsvId = (raw: string | null): string | null => {
   if (!raw) return null;
   const first = raw.split(",").map((s) => s.trim()).filter(Boolean)[0];
   return first || null;
@@ -151,18 +152,20 @@ const configUuid = (value: unknown): string | null => {
 
 /**
  * Build the per-line `config` object sent to /purchases/ from Bubble input,
- * EXCLUDING tolerance/thickness — those are model-derived and injected later
- * from the DigiFabster preselection. `lead_time` falls back to the env default.
+ * EXCLUDING tolerance/thickness — those are resolved later: thickness is
+ * model-derived (preselection); tolerance is the model's preselected value if
+ * present, else DIGIFABSTER_DEFAULT_TOLERANCE_ID. `lead_time` falls back to the
+ * env default.
  */
 const buildLineConfig = (raw: unknown): Record<string, unknown> => {
   const config: Record<string, unknown> = { ...(asRecord(raw) ?? {}) };
 
-  // tolerance + thickness come from the model (preselection), never from Bubble.
+  // tolerance + thickness are injected from the model/config later, not Bubble.
   delete config.tolerance;
   delete config.thickness;
 
   if (!pickString(config.lead_time)) {
-    const lt = firstLeadTimeId(pickString(process.env.DIGIFABSTER_DEFAULT_LEAD_TIME_IDS));
+    const lt = firstCsvId(pickString(process.env.DIGIFABSTER_DEFAULT_LEAD_TIME_IDS));
     if (lt) config.lead_time = lt;
   }
   if (!Array.isArray(config.post_production)) {
@@ -256,26 +259,39 @@ export async function POST(req: Request) {
   /* ---- 1. Resolve model-derived config (tolerance + thickness) per item ---- */
   // Done BEFORE creating the order so a not-ready model doesn't leave a dangling
   // empty order in DigiFabster.
+  const defaultToleranceId = firstCsvId(pickString(process.env.DIGIFABSTER_DEFAULT_TOLERANCE_ID));
   const prepared: Array<{ item: ResolvedLineItem; config: Record<string, unknown> }> = [];
   for (const item of items) {
     try {
       const preselection = await getDigifabsterPreselection(item.modelId, traceId);
-      const tolerance = configUuid(preselection.config?.tolerance);
+      // thickness is model-derived (sheet geometry) -> must come from preselection.
       const thickness = configUuid(preselection.config?.thickness);
-      const missing: string[] = [];
-      if (!tolerance) missing.push("tolerance");
-      if (!thickness) missing.push("thickness");
-      if (!preselection.isReady || missing.length > 0) {
+      if (!preselection.isReady || !thickness) {
         return json(
           {
-            error: "Model not ready or missing tolerance/thickness from DigiFabster preselection.",
+            error: "Model not analysed yet (no thickness from DigiFabster preselection).",
             stage: "preselection",
             modelId: item.modelId,
             isReady: preselection.isReady,
-            missing,
+            missing: thickness ? [] : ["thickness"],
             retryable: true,
           },
           preselection.isReady ? 422 : 409,
+          req,
+        );
+      }
+      // tolerance: the model's preselected value if DigiFabster supplies one,
+      // otherwise the configured default (preselection usually omits tolerance).
+      const tolerance = configUuid(preselection.config?.tolerance) ?? defaultToleranceId;
+      if (!tolerance) {
+        return json(
+          {
+            error: "No tolerance available. Set DIGIFABSTER_DEFAULT_TOLERANCE_ID.",
+            stage: "tolerance",
+            modelId: item.modelId,
+            retryable: false,
+          },
+          422,
           req,
         );
       }

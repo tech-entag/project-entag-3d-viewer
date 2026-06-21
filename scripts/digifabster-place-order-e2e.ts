@@ -30,10 +30,11 @@ const TOLERANCE_UUID = "f40eb7ce-7b2b-4554-9349-5e35ebc9d3ad";
 const THICKNESS_UUID = "767e7c2c-6868-43ce-bd4d-3d218c7df534";
 const LEAD_TIME_UUID = "8fcabd8a-b22e-4b5e-9a7c-9e686cc00fcf";
 
-// A real preselection config: tolerance + thickness (model-derived) plus fields
-// the route must NOT carry into the purchase (its own lead_time / execution).
+// A real preselection config: thickness (model-derived) but NO tolerance —
+// DigiFabster omits tolerance from preselection, so the route falls back to
+// DIGIFABSTER_DEFAULT_TOLERANCE_ID. Also carries fields the route must NOT
+// forward into the purchase (its own lead_time / execution).
 const PRESELECTION_CONFIG: Json = {
-  tolerance: TOLERANCE_UUID,
   thickness: THICKNESS_UUID,
   lead_time: "preselection-lead-should-be-ignored",
   execution: [1],
@@ -173,6 +174,7 @@ const run = async () => {
   process.env.DIGIFABSTER_TOKEN_EXCHANGE_ENDPOINT = `${base}/v2/obtain_s2s_token/`;
   process.env.DIGIFABSTER_API_KEY = "mock-api-key";
   process.env.DIGIFABSTER_DEFAULT_LEAD_TIME_IDS = LEAD_TIME_UUID;
+  process.env.DIGIFABSTER_DEFAULT_TOLERANCE_ID = TOLERANCE_UUID;
   delete process.env.DIGIFABSTER_UPLOAD_SHARED_SECRET;
   delete process.env.DIGIFABSTER_DEFAULT_CLIENT_ID; // exercise the R2/default fallback
 
@@ -207,9 +209,10 @@ const run = async () => {
     assert.equal(purchase.count, 1, "purchase count (scalar)");
     assert.equal(purchase.from_short_iqt, false, "from_short_iqt default false");
     const sentConfig = purchase.config as Json;
-    // tolerance + thickness come from the model (preselection), not Bubble.
-    assert.equal(sentConfig.tolerance, TOLERANCE_UUID, "tolerance from model preselection");
+    // thickness from the model (preselection); tolerance from the configured
+    // default (preselection omits it).
     assert.equal(sentConfig.thickness, THICKNESS_UUID, "thickness from model preselection");
+    assert.equal(sentConfig.tolerance, TOLERANCE_UUID, "tolerance from DIGIFABSTER_DEFAULT_TOLERANCE_ID");
     // lead_time falls back to the env default; preselection's own lead_time is ignored.
     assert.equal(sentConfig.lead_time, LEAD_TIME_UUID, "lead_time from env default");
     assert.notEqual(sentConfig.lead_time, "preselection-lead-should-be-ignored", "preselection lead_time not used");
