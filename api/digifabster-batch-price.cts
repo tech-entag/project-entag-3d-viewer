@@ -439,7 +439,8 @@ export async function POST(req: Request) {
         token: bubbleToken,
         thingType: bubbleThingType,
         thingId: priceId,
-        payload: { [bubbleMaterialField]: materialId },
+        // The Bubble OrderPart `materialId` field is TEXT, so send it as a string.
+        payload: { [bubbleMaterialField]: String(materialId) },
       });
       materialWrite = {
         status: matUpdate.ok ? "updated" : "failed",

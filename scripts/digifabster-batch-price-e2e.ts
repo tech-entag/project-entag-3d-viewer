@@ -241,7 +241,8 @@ const run = async () => {
     assert.equal(pricePatch?.url, "/api/1.1/obj/OrderPart/orderpart-xyz", "price PATCH targets the OrderPart thing");
     assert.equal(pricePatch?.body.requestedPrice, 84.7, "price PATCH sets multiplied requestedPrice");
     assert.ok(materialPatch, "a separate PATCH writes materialId");
-    assert.equal(materialPatch?.body.materialId, MATERIAL_ID, "material PATCH writes materialId");
+    // Bubble's materialId field is TEXT -> sent as a string.
+    assert.equal(materialPatch?.body.materialId, String(MATERIAL_ID), "material PATCH writes materialId as a string");
     assert.equal((bubble.materialWrite as Json)?.field, "materialId", "Bubble write reports the materialId field");
     assert.equal((bubble.materialWrite as Json)?.status, "updated", "materialId write succeeded");
 
