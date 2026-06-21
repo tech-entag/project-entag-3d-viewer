@@ -17,6 +17,9 @@ const DEFAULT_BUBBLE_DATA_API_BASE_URL = "https://app.entag.co/version-test/api/
 // The price writes to the Bubble `OrderPart` thing, field `requestedPrice`.
 const DEFAULT_BUBBLE_PRICE_TYPE = "OrderPart";
 const DEFAULT_BUBBLE_COST_FIELD = "requestedPrice";
+// The resolved material id is also written to the OrderPart (Bubble feeds it
+// into the place-order call). Field name overridable; empty disables the write.
+const DEFAULT_BUBBLE_MATERIAL_FIELD = "materialId";
 
 // Delivery lead-time priority used by live batch_price/material calls that
 // return prices. Used when neither the body nor DIGIFABSTER_DEFAULT_LEAD_TIME_IDS
@@ -114,9 +117,15 @@ const updateBubbleManufacturingCost = async (params: {
   thingId: string;
   field: string;
   cost: number;
+  materialField?: string | null;
+  materialId?: number | null;
 }) => {
   const endpoint = `${params.baseUrl}/${encodeURIComponent(params.thingType)}/${encodeURIComponent(params.thingId)}`;
   const payload: Record<string, unknown> = { [params.field]: params.cost };
+  // Include the resolved material id when a field name is configured.
+  if (params.materialField && typeof params.materialId === "number" && Number.isFinite(params.materialId)) {
+    payload[params.materialField] = params.materialId;
+  }
 
   const response = await fetch(endpoint, {
     method: "PATCH",
@@ -391,6 +400,17 @@ export async function POST(req: Request) {
   const bubbleCostField =
     pickString(body.bubble_manufacturing_cost_field, body.bubbleManufacturingCostField, process.env.BUBBLE_MANUFACTURING_COST_FIELD) ||
     DEFAULT_BUBBLE_COST_FIELD;
+  // Resolve the material-id field name; "" (explicit empty) disables the write.
+  const bubbleMaterialFieldRaw = pickString(
+    body.bubble_material_field,
+    body.bubbleMaterialField,
+    process.env.BUBBLE_MATERIAL_FIELD,
+  );
+  const bubbleMaterialField =
+    bubbleMaterialFieldRaw ??
+    (body.bubble_material_field === "" || process.env.BUBBLE_MATERIAL_FIELD === ""
+      ? null
+      : DEFAULT_BUBBLE_MATERIAL_FIELD);
   // The price now writes to the OrderPart thing, so its id (part_id) is the
   // target. Explicit priceId still wins; order ids remain as fallbacks.
   const priceId = pickString(
@@ -415,6 +435,8 @@ export async function POST(req: Request) {
       thingId: priceId,
       field: bubbleCostField,
       cost: selectedPrice.cost,
+      materialField: bubbleMaterialField,
+      materialId,
     });
     bubbleUpdate = {
       status: update.ok ? "updated" : "failed",
@@ -422,6 +444,7 @@ export async function POST(req: Request) {
       endpoint: update.endpoint,
       field: bubbleCostField,
       cost: selectedPrice.cost,
+      ...(bubbleMaterialField ? { materialField: bubbleMaterialField, materialId } : {}),
       ...(update.ok ? {} : { responseData: update.responseData }),
     };
   } else {

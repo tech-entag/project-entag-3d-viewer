@@ -235,6 +235,8 @@ const run = async () => {
     assert.ok(captured.bubblePatch, "Bubble server should have captured a PATCH");
     assert.equal(captured.bubblePatch?.url, "/api/1.1/obj/OrderPart/orderpart-xyz", "PATCH targets the OrderPart thing");
     assert.equal(captured.bubblePatch?.body.requestedPrice, 84.7, "PATCH sets multiplied requestedPrice");
+    assert.equal(captured.bubblePatch?.body.materialId, MATERIAL_ID, "PATCH also writes materialId");
+    assert.equal(bubble.materialField, "materialId", "Bubble write reports the materialId field");
 
     console.log("\n[suite] Scenario 1 PASS — batch-price (202 -> 200, matrix parsed, price -> Bubble)");
     console.log(JSON.stringify({ selectedPrice: data.selectedPrice, bubble: data.bubble }, null, 2));
