@@ -109,28 +109,20 @@ const buildBubbleDataApiHeaders = (token: string) => {
   };
 };
 
-/** PATCH a Bubble thing with the manufacturing cost from batch_price. */
-const updateBubbleManufacturingCost = async (params: {
+/** PATCH a Bubble thing with an arbitrary field payload. */
+const patchBubbleThing = async (params: {
   baseUrl: string;
   token: string;
   thingType: string;
   thingId: string;
-  field: string;
-  cost: number;
-  materialField?: string | null;
-  materialId?: number | null;
+  payload: Record<string, unknown>;
 }) => {
   const endpoint = `${params.baseUrl}/${encodeURIComponent(params.thingType)}/${encodeURIComponent(params.thingId)}`;
-  const payload: Record<string, unknown> = { [params.field]: params.cost };
-  // Include the resolved material id when a field name is configured.
-  if (params.materialField && typeof params.materialId === "number" && Number.isFinite(params.materialId)) {
-    payload[params.materialField] = params.materialId;
-  }
 
   const response = await fetch(endpoint, {
     method: "PATCH",
     headers: buildBubbleDataApiHeaders(params.token),
-    body: JSON.stringify(payload),
+    body: JSON.stringify(params.payload),
   });
 
   const responseText = await response.text();
@@ -143,7 +135,7 @@ const updateBubbleManufacturingCost = async (params: {
     }
   }
 
-  return { ok: response.ok, status: response.status, endpoint, payload, responseData };
+  return { ok: response.ok, status: response.status, endpoint, payload: params.payload, responseData };
 };
 
 /* ------------------------------------------------------------------ */
@@ -428,23 +420,43 @@ export async function POST(req: Request) {
 
   let bubbleUpdate: Record<string, unknown>;
   if (selectedPrice && priceId && bubbleToken) {
-    const update = await updateBubbleManufacturingCost({
+    // Write the PRICE on its own PATCH so a missing/extra material field can
+    // never block it (Bubble validates a PATCH atomically).
+    const update = await patchBubbleThing({
       baseUrl: bubbleBaseUrl,
       token: bubbleToken,
       thingType: bubbleThingType,
       thingId: priceId,
-      field: bubbleCostField,
-      cost: selectedPrice.cost,
-      materialField: bubbleMaterialField,
-      materialId,
+      payload: { [bubbleCostField]: selectedPrice.cost },
     });
+
+    // Best-effort, SEPARATE PATCH for materialId — its failure is reported but
+    // does not affect the price write.
+    let materialWrite: Record<string, unknown> | undefined;
+    if (bubbleMaterialField && typeof materialId === "number" && Number.isFinite(materialId)) {
+      const matUpdate = await patchBubbleThing({
+        baseUrl: bubbleBaseUrl,
+        token: bubbleToken,
+        thingType: bubbleThingType,
+        thingId: priceId,
+        payload: { [bubbleMaterialField]: materialId },
+      });
+      materialWrite = {
+        status: matUpdate.ok ? "updated" : "failed",
+        httpStatus: matUpdate.status,
+        field: bubbleMaterialField,
+        materialId,
+        ...(matUpdate.ok ? {} : { responseData: matUpdate.responseData }),
+      };
+    }
+
     bubbleUpdate = {
       status: update.ok ? "updated" : "failed",
       httpStatus: update.status,
       endpoint: update.endpoint,
       field: bubbleCostField,
       cost: selectedPrice.cost,
-      ...(bubbleMaterialField ? { materialField: bubbleMaterialField, materialId } : {}),
+      ...(materialWrite ? { materialWrite } : {}),
       ...(update.ok ? {} : { responseData: update.responseData }),
     };
   } else {

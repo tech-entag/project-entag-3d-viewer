@@ -28,7 +28,7 @@ interface Captured {
   batchPriceCalls: number;
   preselectionCalls: number;
   lastBatchPriceBody: Json | null;
-  bubblePatch: { url: string; body: Json } | null;
+  bubblePatches: Array<{ url: string; body: Json }>;
 }
 
 // Mirrors a real preselection config: a required field (thickness) plus fields
@@ -127,7 +127,7 @@ const startMockServer = async (captured: Captured): Promise<Server> => {
     // --- Bubble Data API: OrderPart PATCH (requestedPrice) ---
     if (method === "PATCH" && url.startsWith("/api/1.1/obj/OrderPart/")) {
       const raw = (await readBuffer(req)).toString("utf8");
-      captured.bubblePatch = { url, body: raw.trim() ? (JSON.parse(raw) as Json) : {} };
+      captured.bubblePatches.push({ url, body: raw.trim() ? (JSON.parse(raw) as Json) : {} });
       sendJson(res, 200, { status: "success" });
       return;
     }
@@ -148,7 +148,7 @@ const run = async () => {
     batchPriceCalls: 0,
     preselectionCalls: 0,
     lastBatchPriceBody: null,
-    bubblePatch: null,
+    bubblePatches: [],
   };
 
   const server = await startMockServer(captured);
@@ -232,11 +232,18 @@ const run = async () => {
     const bubble = data.bubble as Json;
     assert.equal(bubble.status, "updated", "Bubble write should succeed");
     assert.equal(bubble.field, "requestedPrice", "writes the requestedPrice field");
-    assert.ok(captured.bubblePatch, "Bubble server should have captured a PATCH");
-    assert.equal(captured.bubblePatch?.url, "/api/1.1/obj/OrderPart/orderpart-xyz", "PATCH targets the OrderPart thing");
-    assert.equal(captured.bubblePatch?.body.requestedPrice, 84.7, "PATCH sets multiplied requestedPrice");
-    assert.equal(captured.bubblePatch?.body.materialId, MATERIAL_ID, "PATCH also writes materialId");
-    assert.equal(bubble.materialField, "materialId", "Bubble write reports the materialId field");
+    // Price and materialId are written as SEPARATE PATCHes (a bad material
+    // field must not block the price), so there are two captured PATCHes.
+    assert.equal(captured.bubblePatches.length, 2, "two separate PATCHes (price + materialId)");
+    const pricePatch = captured.bubblePatches.find((p) => "requestedPrice" in p.body);
+    const materialPatch = captured.bubblePatches.find((p) => "materialId" in p.body);
+    assert.ok(pricePatch, "a PATCH writes requestedPrice");
+    assert.equal(pricePatch?.url, "/api/1.1/obj/OrderPart/orderpart-xyz", "price PATCH targets the OrderPart thing");
+    assert.equal(pricePatch?.body.requestedPrice, 84.7, "price PATCH sets multiplied requestedPrice");
+    assert.ok(materialPatch, "a separate PATCH writes materialId");
+    assert.equal(materialPatch?.body.materialId, MATERIAL_ID, "material PATCH writes materialId");
+    assert.equal((bubble.materialWrite as Json)?.field, "materialId", "Bubble write reports the materialId field");
+    assert.equal((bubble.materialWrite as Json)?.status, "updated", "materialId write succeeded");
 
     console.log("\n[suite] Scenario 1 PASS — batch-price (202 -> 200, matrix parsed, price -> Bubble)");
     console.log(JSON.stringify({ selectedPrice: data.selectedPrice, bubble: data.bubble }, null, 2));
