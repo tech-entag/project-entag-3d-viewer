@@ -14,6 +14,7 @@
     "test:e2e:bubble-flow": "tsx scripts/bubble-flow-e2e.ts",
     "test:e2e:upload-thumbnail-bubble": "tsx scripts/upload-thumbnail-bubble-e2e.ts",
     "test:e2e:batch-price": "tsx scripts/digifabster-batch-price-e2e.ts",
+    "test:e2e:place-order": "tsx scripts/digifabster-place-order-e2e.ts",
     "test:sheet-nesting:dxf": "tsx scripts/sheet-nesting-dxf-proof.ts",
     "test:viewer:ui": "pnpm test:e2e -- e2e/viewer-and-conversion.spec.ts",
     "test:viewer:contracts": "tsx scripts/viewer-resilience-smoke.ts",

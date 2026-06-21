@@ -1331,6 +1331,247 @@ export const submitDigifabsterInitialOrder = async (params: {
   };
 };
 
+/* ------------------------------------------------------------------ */
+/*  Place-order flow: ADM order -> purchases -> submit -> confirm     */
+/*  (Entag purchasing from DigiFabster — distinct from batch_price.)  */
+/* ------------------------------------------------------------------ */
+
+const parseDecimal = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+};
+
+export interface CreateDigifabsterAdmOrderResult {
+  orderId: number;
+  data: Record<string, unknown>;
+}
+
+/**
+ * POST /v2/orders/users/{userId}/adm/ — create an empty (cart) order bound to a
+ * DigiFabster client/user. This is the IQT "create order" step; line items are
+ * added afterwards via createDigifabsterPurchase.
+ */
+export const createDigifabsterAdmOrder = async (params: {
+  userId: number;
+  locale?: string | null;
+  uploadJob?: string | null;
+  inhouseOwner?: number | null;
+  payload?: unknown;
+  traceId?: string;
+}): Promise<CreateDigifabsterAdmOrderResult> => {
+  const headers = await buildDigifabsterHeaders();
+  const base = resolveDigifabsterBaseUrl();
+
+  const body: Record<string, unknown> = {};
+  if (params.locale && params.locale.trim()) body.locale = params.locale.trim();
+  if (params.uploadJob && params.uploadJob.trim()) body.upload_job = params.uploadJob.trim();
+  if (typeof params.inhouseOwner === "number" && Number.isFinite(params.inhouseOwner)) {
+    body.inhouse_owner = params.inhouseOwner;
+  }
+  if (params.payload !== undefined) body.payload = params.payload;
+
+  logStep(params.traceId, "adm_order.create.start", { userId: params.userId });
+
+  const response = await fetch(
+    `${base}/v2/orders/users/${encodeURIComponent(String(params.userId))}/adm/`,
+    {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+
+  const data = asResponseRecord(await parseJsonResponse(response));
+
+  if (!response.ok) {
+    logStep(params.traceId, "adm_order.create.failed", { userId: params.userId, status: response.status });
+    throw new DigifabsterSyncError({
+      message: "DigiFabster ADM order creation failed.",
+      status: response.status || 502,
+      code: "digifabster_adm_order_create_failed",
+      details:
+        (typeof data.detail === "string" && data.detail) ||
+        (Object.keys(data).length > 0 ? JSON.stringify(data).slice(0, 2_000) : null),
+      retryable: response.status >= 500,
+    });
+  }
+
+  const orderId = Number(data.id);
+  if (!Number.isFinite(orderId)) {
+    throw new DigifabsterSyncError({
+      message: "DigiFabster ADM order response missing id.",
+      status: 502,
+      code: "digifabster_adm_order_missing_id",
+      details: null,
+      retryable: false,
+    });
+  }
+
+  logStep(params.traceId, "adm_order.create.success", { userId: params.userId, orderId });
+  return { orderId, data };
+};
+
+export interface DigifabsterPurchaseResult {
+  purchaseId: number | null;
+  totalPrice: number | null;
+  pricePerPart: number | null;
+  materialTitle: string | null;
+  orderTotalPrice: number | null;
+  data: Record<string, unknown>;
+}
+
+/**
+ * POST /v2/orders/{orderId}/purchases/ — add a priced line item to an order.
+ * The `config` object is sent as-is (tolerance/thickness/lead_time as single
+ * UUID strings, plus extra_fieldsets/post_production), matching the live widget
+ * body. Returns the authoritative committed price for the line.
+ */
+export const createDigifabsterPurchase = async (params: {
+  orderId: number;
+  modelId: number;
+  materialId: number;
+  config: Record<string, unknown>;
+  count: number;
+  fromShortIqt?: boolean;
+  traceId?: string;
+}): Promise<DigifabsterPurchaseResult> => {
+  const headers = await buildDigifabsterHeaders();
+  const base = resolveDigifabsterBaseUrl();
+
+  const body: Record<string, unknown> = {
+    config: params.config,
+    material_id: params.materialId,
+    model_id: params.modelId,
+    count: params.count,
+    from_short_iqt: params.fromShortIqt ?? false,
+  };
+
+  logStep(params.traceId, "purchase.create.start", {
+    orderId: params.orderId,
+    modelId: params.modelId,
+    materialId: params.materialId,
+    count: params.count,
+  });
+
+  const response = await fetch(
+    `${base}/v2/orders/${encodeURIComponent(String(params.orderId))}/purchases/`,
+    {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+
+  const data = asResponseRecord(await parseJsonResponse(response));
+
+  if (!response.ok) {
+    logStep(params.traceId, "purchase.create.failed", { orderId: params.orderId, status: response.status });
+    throw new DigifabsterSyncError({
+      message: "DigiFabster purchase creation failed.",
+      status: response.status || 502,
+      code: "digifabster_purchase_create_failed",
+      details:
+        (typeof data.detail === "string" && data.detail) ||
+        (Object.keys(data).length > 0 ? JSON.stringify(data).slice(0, 2_000) : null),
+      retryable: response.status >= 500,
+    });
+  }
+
+  const purchaseId = optionalNumber(data.purchase_id);
+  const order = asResponseRecord(data.order);
+  const products = Array.isArray(order.products) ? order.products : [];
+  const matched =
+    products.find((p) => optionalNumber(asResponseRecord(p).id) === purchaseId) ??
+    products[products.length - 1];
+  const lineRecord = asResponseRecord(matched);
+
+  logStep(params.traceId, "purchase.create.success", {
+    orderId: params.orderId,
+    purchaseId,
+    totalPrice: parseDecimal(lineRecord.total_price),
+  });
+
+  return {
+    purchaseId,
+    // DigiFabster serializes money as either numbers or decimal strings — parse both.
+    totalPrice: parseDecimal(lineRecord.total_price),
+    pricePerPart: parseDecimal(lineRecord.price_per_part),
+    materialTitle: optionalString(lineRecord.material_title),
+    orderTotalPrice: parseDecimal(order.total_price),
+    data,
+  };
+};
+
+export interface ConfirmDigifabsterInvoiceResult {
+  invoiceId: number | null;
+  orderStatus: string | null;
+  isPaid: boolean | null;
+  cost: number | null;
+  data: Record<string, unknown>;
+}
+
+/**
+ * PATCH /v2/invoices/{invoiceId}/{hash}/ — confirm/place an order's invoice.
+ * This endpoint is hash-protected (no S2S token in the spec: `security: - {}`),
+ * so we deliberately omit the auth header to match the live widget call.
+ * Default status "placed".
+ */
+export const confirmDigifabsterInvoice = async (params: {
+  invoiceId: string | number;
+  invoiceHash: string;
+  status?: string;
+  poNumber?: string | null;
+  traceId?: string;
+}): Promise<ConfirmDigifabsterInvoiceResult> => {
+  const base = resolveDigifabsterBaseUrl();
+  const status = params.status?.trim() || "placed";
+
+  const body: Record<string, unknown> = { status };
+  if (params.poNumber && params.poNumber.trim()) body.po_number = params.poNumber.trim();
+
+  logStep(params.traceId, "invoice.confirm.start", { invoiceId: params.invoiceId, status });
+
+  const response = await fetch(
+    `${base}/v2/invoices/${encodeURIComponent(String(params.invoiceId))}/${encodeURIComponent(params.invoiceHash)}/`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+
+  const data = asResponseRecord(await parseJsonResponse(response));
+
+  if (!response.ok) {
+    logStep(params.traceId, "invoice.confirm.failed", { invoiceId: params.invoiceId, status: response.status });
+    throw new DigifabsterSyncError({
+      message: "DigiFabster invoice confirmation failed.",
+      status: response.status || 502,
+      code: "digifabster_invoice_confirm_failed",
+      details:
+        (typeof data.detail === "string" && data.detail) ||
+        (Object.keys(data).length > 0 ? JSON.stringify(data).slice(0, 2_000) : null),
+      retryable: response.status >= 500,
+    });
+  }
+
+  const order = asResponseRecord(data.order);
+  logStep(params.traceId, "invoice.confirm.success", { invoiceId: params.invoiceId });
+
+  return {
+    invoiceId: optionalNumber(data.id),
+    orderStatus: optionalString(order.status),
+    isPaid: typeof data.is_paid === "boolean" ? data.is_paid : null,
+    // cost can arrive as a number or a decimal string depending on the endpoint.
+    cost: parseDecimal(data.cost),
+    data,
+  };
+};
+
 /**
  * GET /v2/models/{id}/ — fetch a model's generated thumbnails (URLs) by the
  * object_model_id returned from an upload.
