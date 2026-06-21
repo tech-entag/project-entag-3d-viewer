@@ -1572,6 +1572,61 @@ export const confirmDigifabsterInvoice = async (params: {
   };
 };
 
+export interface DigifabsterWidgetTechnologies {
+  /** Total technology count reported by DigiFabster. */
+  count: number;
+  /** The full technologies catalog (every page aggregated). */
+  results: unknown[];
+  /** ISO timestamp of when this snapshot was fetched. */
+  fetchedAt: string;
+}
+
+/**
+ * GET /v2/users/widget-technologies/ — the master config catalog the DigiFabster
+ * widget renders dropdowns from (technologies -> materials -> tolerance /
+ * lead_time / post_production / thicknesses / dfm_features, each with UUIDs).
+ * Follows `next` pagination and aggregates all pages.
+ */
+export const getDigifabsterWidgetTechnologies = async (
+  traceId?: string,
+): Promise<DigifabsterWidgetTechnologies> => {
+  const headers = await buildDigifabsterHeaders();
+  const base = resolveDigifabsterBaseUrl();
+
+  let url: string | null = `${base}/v2/users/widget-technologies/`;
+  const results: unknown[] = [];
+  let count = 0;
+  let pages = 0;
+
+  logStep(traceId, "widget_technologies.start", {});
+
+  while (url) {
+    const response: Response = await fetch(url, { method: "GET", headers });
+    const data = asResponseRecord(await parseJsonResponse(response));
+
+    if (!response.ok) {
+      logStep(traceId, "widget_technologies.failed", { status: response.status, pages });
+      throw new DigifabsterSyncError({
+        message: "Failed to fetch DigiFabster widget technologies.",
+        status: response.status || 502,
+        code: "digifabster_widget_technologies_failed",
+        details: Object.keys(data).length > 0 ? JSON.stringify(data).slice(0, 2_000) : null,
+        retryable: response.status >= 500,
+      });
+    }
+
+    if (Array.isArray(data.results)) results.push(...data.results);
+    if (typeof data.count === "number") count = data.count;
+    url = typeof data.next === "string" && data.next.trim() ? data.next : null;
+
+    pages += 1;
+    if (pages > 50) break; // safety valve against a pagination loop
+  }
+
+  logStep(traceId, "widget_technologies.success", { count, results: results.length, pages });
+  return { count: count || results.length, results, fetchedAt: new Date().toISOString() };
+};
+
 /**
  * GET /v2/models/{id}/ — fetch a model's generated thumbnails (URLs) by the
  * object_model_id returned from an upload.
