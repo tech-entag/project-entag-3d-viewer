@@ -45,7 +45,7 @@ const startMockServer = async (captured: Captured, baseRef: { base: string }): P
         previous: null,
         results: [
           { id: 12, title: "3-Axis Milling" },
-          { id: 44, title: "Sheet Metal" },
+          { id: 13, title: "CNC Sheetmetal" },
         ],
       });
       return;
@@ -56,7 +56,7 @@ const startMockServer = async (captured: Captured, baseRef: { base: string }): P
         count: 3,
         next: null,
         previous: `${baseRef.base}/v2/users/widget-technologies/`,
-        results: [{ id: 99, title: "Turning" }],
+        results: [{ id: 11, title: "Turning" }],
       });
       return;
     }
@@ -99,7 +99,7 @@ const run = async () => {
     assert.equal(data.count, 3, "count from DigiFabster");
     const results = data.results as Array<Json>;
     assert.equal(results.length, 3, "both pages aggregated (2 + 1)");
-    assert.deepEqual(results.map((r) => r.id), [12, 44, 99], "results in page order");
+    assert.deepEqual(results.map((r) => r.id), [12, 13, 11], "results in page order");
     assert.ok(typeof data.fetchedAt === "string" && data.fetchedAt, "fetchedAt timestamp present");
     assert.equal(captured.techCalls, 2, "followed `next` to fetch 2 pages");
 
@@ -114,7 +114,51 @@ const run = async () => {
     assert.equal((data2.results as Array<Json>).length, 3, "POST aggregates pages too");
     assert.equal(captured.techCalls, techBefore + 2, "POST re-fetched both pages");
 
-    console.log("[suite] PASS — catalog fetched, paginated, served (R2 store best-effort)");
+    /* ---- GET ?tech= : single technology (lighter payload) ---- */
+    console.log("[suite] GET ?tech=milling (single technology)");
+    const res3 = await GET(new Request(`${base}/api/digifabster-technologies?tech=milling`, { method: "GET" }));
+    const data3 = (await res3.json()) as Json;
+    assert.equal(res3.status, 200, "tech filter should 200");
+    assert.equal(data3.count, 1, "single technology -> count 1");
+    assert.equal((data3.technology as Json)?.id, 12, "matched 3-Axis Milling by title substring");
+    assert.equal(data3.results, undefined, "no full results array on a single-tech response");
+
+    // Match by numeric id too.
+    const res4 = await GET(new Request(`${base}/api/digifabster-technologies?tech=11`, { method: "GET" }));
+    const data4 = (await res4.json()) as Json;
+    assert.equal((data4.technology as Json)?.id, 11, "matched Turning by id");
+
+    /* ---- GET ?tech= : no match -> 404 with available list ---- */
+    const res5 = await GET(new Request(`${base}/api/digifabster-technologies?tech=nope`, { method: "GET" }));
+    const data5 = (await res5.json()) as Json;
+    assert.equal(res5.status, 404, "unknown tech -> 404");
+    assert.equal((data5.available as Array<Json>).length, 3, "404 lists available technologies");
+
+    /* ---- GET ?category= : Bubble groupings ---- */
+    console.log("[suite] GET ?category=cnc-machining (milling + turning)");
+    const resCnc = await GET(new Request(`${base}/api/digifabster-technologies?category=cnc-machining`, { method: "GET" }));
+    const dataCnc = (await resCnc.json()) as Json;
+    assert.equal(resCnc.status, 200, "category should 200");
+    assert.equal(dataCnc.category, "cnc-machining", "echoes resolved category key");
+    assert.equal(dataCnc.count, 2, "CNC Machining groups milling + turning");
+    const cncIds = (dataCnc.technologies as Array<Json>).map((t) => t.id).sort();
+    assert.deepEqual(cncIds, [11, 12], "CNC Machining = Turning(11) + Milling(12)");
+
+    const resSm = await GET(new Request(`${base}/api/digifabster-technologies?category=sheet-metal`, { method: "GET" }));
+    const dataSm = (await resSm.json()) as Json;
+    assert.equal(dataSm.count, 1, "Sheet Metal = 1 technology");
+    assert.equal((dataSm.technologies as Array<Json>)[0].id, 13, "Sheet Metal -> CNC Sheetmetal(13)");
+
+    const resTube = await GET(new Request(`${base}/api/digifabster-technologies?category=tube`, { method: "GET" }));
+    const dataTube = (await resTube.json()) as Json;
+    assert.equal(resTube.status, 200, "tube category 200 even when empty");
+    assert.equal(dataTube.count, 0, "Tube has no mapped technology yet");
+    assert.ok(typeof dataTube.note === "string", "empty category carries a note");
+
+    const resBad = await GET(new Request(`${base}/api/digifabster-technologies?category=nope`, { method: "GET" }));
+    assert.equal(resBad.status, 404, "unknown category -> 404");
+
+    console.log("[suite] PASS — catalog + single-tech filter + Bubble category grouping");
   } finally {
     await stopServer(server);
   }

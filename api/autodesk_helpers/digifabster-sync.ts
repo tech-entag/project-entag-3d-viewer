@@ -1627,6 +1627,59 @@ export const getDigifabsterWidgetTechnologies = async (
   return { count: count || results.length, results, fetchedAt: new Date().toISOString() };
 };
 
+export interface DigifabsterSuitableMaterials {
+  isReady: boolean;
+  /** Material ids DigiFabster considers valid for the model. */
+  materials: number[];
+}
+
+/**
+ * POST /v2/suitable_materials/ — the list of material ids DigiFabster considers
+ * valid for a model (the customer-selectable materials), the complement of
+ * preselection's single auto-pick. Response shape:
+ *   { "<modelId>": { is_ready, suitable_materials: [ids] } }
+ */
+export const getDigifabsterSuitableMaterials = async (
+  modelId: number,
+  traceId?: string,
+): Promise<DigifabsterSuitableMaterials> => {
+  const headers = await buildDigifabsterHeaders();
+  const url = `${resolveDigifabsterBaseUrl()}/v2/suitable_materials/`;
+
+  logStep(traceId, "suitable_materials.start", { modelId });
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ models_ids: [modelId] }),
+  });
+
+  const data = asResponseRecord(await parseJsonResponse(response));
+
+  if (!response.ok) {
+    logStep(traceId, "suitable_materials.failed", { modelId, status: response.status });
+    throw new DigifabsterSyncError({
+      message: `DigiFabster suitable_materials failed for model ${modelId}.`,
+      status: response.status || 502,
+      code: "digifabster_suitable_materials_failed",
+      details: Object.keys(data).length > 0 ? JSON.stringify(data).slice(0, 2_000) : null,
+      retryable: response.status >= 500,
+    });
+  }
+
+  const entry = asResponseRecord(data[String(modelId)]);
+  const materials = (Array.isArray(entry.suitable_materials) ? entry.suitable_materials : [])
+    .map((n) => Number(n))
+    .filter((n) => Number.isInteger(n) && n > 0);
+
+  logStep(traceId, "suitable_materials.success", {
+    modelId,
+    isReady: entry.is_ready === true,
+    count: materials.length,
+  });
+  return { isReady: entry.is_ready === true, materials };
+};
+
 /**
  * GET /v2/models/{id}/ — fetch a model's generated thumbnails (URLs) by the
  * object_model_id returned from an upload.
