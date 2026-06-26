@@ -22,6 +22,7 @@ interface Captured {
   batchPriceCalls: number;
   bubbleCalls: number;
   modelFetchCalls: number;
+  catalogCalls: number;
 }
 
 /** Minimal in-memory R2 stub so we can exercise the field-toggle config. */
@@ -92,6 +93,25 @@ const startMockServer = async (captured: Captured): Promise<Server> => {
       return;
     }
 
+    // Widget-technologies catalog — materialId -> group (technology title) + name (title).
+    if (method === "GET" && url === "/v2/users/widget-technologies/") {
+      captured.catalogCalls += 1;
+      sendJson(res, 200, {
+        count: 1,
+        next: null,
+        previous: null,
+        results: [
+          {
+            id: 7,
+            tech_id: 7,
+            title: "Steel",
+            materials: [{ id: MATERIAL_ID, title: "St37 / S235JR / 1.0570" }],
+          },
+        ],
+      });
+      return;
+    }
+
     // Model thumbnail + bounding-box dims.
     if (method === "GET" && url === `/v2/models/${MODEL_ID}/`) {
       captured.modelFetchCalls += 1;
@@ -127,7 +147,7 @@ const stopServer = async (server: Server) =>
   new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
 
 const run = async () => {
-  const captured: Captured = { batchPriceCalls: 0, bubbleCalls: 0, modelFetchCalls: 0 };
+  const captured: Captured = { batchPriceCalls: 0, bubbleCalls: 0, modelFetchCalls: 0, catalogCalls: 0 };
   const server = await startMockServer(captured);
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 
@@ -158,12 +178,16 @@ const run = async () => {
     assert.equal(data.image, "https://cdn/thumb300.png", "image = best thumbnail");
     assert.equal(data.dimX, 122.67, "dimX from model size");
     assert.equal(data.dimY, 16.0, "dimY from model size");
-    assert.equal(data.dimZ, null, "dimZ null");
+    assert.equal(data.dimZ, 0, "dimZ defaults to 0 when size.z is null (flat sheet)");
     assert.equal(data.dimUnits, "mm", "dimUnits from model");
 
     // material + price (reused from batch-price; multiplier applied)
     assert.equal(data.materialId, MATERIAL_ID, "materialId resolved (preselection)");
     assert.equal(data.materialSource, "preselection", "materialSource surfaced");
+    // materialId translated via the widget-technologies catalog.
+    assert.equal(data.materialGroup, "Steel", "materialGroup = technology title");
+    assert.equal(data.materialName, "St37 / S235JR / 1.0570", "materialName = material title");
+    assert.ok(captured.catalogCalls >= 1, "catalog fetched for material translation");
     assert.equal(data.requestedPrice, 84.7, "requestedPrice = 55 * 1.54");
     assert.equal(data.priceStatus, "priced", "priceStatus surfaced");
     assert.equal(data.shouldRetry, false, "shouldRetry false when priced");

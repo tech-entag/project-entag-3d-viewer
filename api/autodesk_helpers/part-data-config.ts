@@ -18,6 +18,10 @@ export const PART_DATA_FIELDS = [
   "dimUnits",
   "materialId",
   "materialSource",
+  // Human-readable material, translated from materialId via the widget-technologies
+  // catalog: group = technology title ("Steel"), name = material title ("St37 / …").
+  "materialGroup",
+  "materialName",
   "requestedPrice",
   "priceStatus",
   "shouldRetry",

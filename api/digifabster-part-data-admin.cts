@@ -18,6 +18,8 @@ const FIELD_LABELS: Record<string, string> = {
   dimUnits: "dimUnits — mm / cm / in",
   materialId: "materialId — resolved material id",
   materialSource: "materialSource — request | preselection",
+  materialGroup: "materialGroup — material family, e.g. Steel / Aluminium",
+  materialName: "materialName — grade, e.g. St37 / S235JR / 1.0570",
   requestedPrice: "requestedPrice — price × multiplier",
   priceStatus: "priceStatus — priced | analysing",
   shouldRetry: "shouldRetry — price not ready yet",
