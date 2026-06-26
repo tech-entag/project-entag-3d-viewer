@@ -121,6 +121,100 @@ const bridgeR2 = (env: Record<string, unknown>) => {
   }
 };
 
+/** Stash the D1 logging binding so the outbound fetch wrapper can reach it. */
+const bridgeD1 = (env: Record<string, unknown>) => {
+  const db = env.API_LOGS_DB;
+  if (db) {
+    (globalThis as { __ENTAG_D1__?: unknown }).__ENTAG_D1__ = db;
+  }
+};
+
+/** URLs whose outbound traffic we persist (the Bubble Data API). */
+const isLoggedOutbound = (urlStr: string): boolean =>
+  /app\.entag\.co/i.test(urlStr) || /\/api\/1\.1\/(obj|wf)\//i.test(urlStr);
+
+const reqBodyText = (init?: { body?: unknown }): string | null => {
+  const body = init?.body;
+  return typeof body === "string" ? truncate(body) : null;
+};
+
+/**
+ * Install (once) a global fetch wrapper that logs every call the worker makes
+ * to Bubble into the same api_logs table with direction = "outbound". This is
+ * how the handler-side Bubble PATCH/POST/GET calls get captured without editing
+ * the untouched api/**.cts handlers. The D1 binding is read at call time from
+ * globalThis (set per-request by bridgeD1).
+ */
+let outboundLoggingInstalled = false;
+const installOutboundLogging = () => {
+  if (outboundLoggingInstalled) return;
+  outboundLoggingInstalled = true;
+  const original = globalThis.fetch.bind(globalThis);
+
+  const wrapped = async (input: unknown, init?: { method?: string; body?: unknown }): Promise<Response> => {
+    const url =
+      typeof input === "string"
+        ? input
+        : (input as { url?: string })?.url ?? String(input);
+
+    if (!isLoggedOutbound(url)) return original(input as RequestInfo, init as RequestInit);
+
+    const db = (globalThis as { __ENTAG_D1__?: D1Like }).__ENTAG_D1__;
+    const method = (
+      init?.method ??
+      (typeof input === "object" ? (input as { method?: string })?.method : undefined) ??
+      "GET"
+    ).toUpperCase();
+    const start = Date.now();
+
+    try {
+      const res = await original(input as RequestInfo, init as RequestInit);
+      if (db) {
+        try {
+          const resText = await res.clone().text();
+          await writeApiLog(db, {
+            direction: "outbound",
+            ts: Date.now(),
+            method,
+            path: url,
+            query: null,
+            status: res.status,
+            duration_ms: Date.now() - start,
+            ip: null,
+            content_type: res.headers.get("content-type"),
+            req_body: reqBodyText(init),
+            res_body: resText ? truncate(resText) : null,
+            error: res.ok ? null : `HTTP ${res.status}`,
+          });
+        } catch {
+          /* logging is best-effort */
+        }
+      }
+      return res;
+    } catch (err) {
+      if (db) {
+        await writeApiLog(db, {
+          direction: "outbound",
+          ts: Date.now(),
+          method,
+          path: url,
+          query: null,
+          status: 0,
+          duration_ms: Date.now() - start,
+          ip: null,
+          content_type: null,
+          req_body: reqBodyText(init),
+          res_body: null,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+      throw err;
+    }
+  };
+
+  globalThis.fetch = wrapped as unknown as typeof fetch;
+};
+
 const withCors = (response: Response): Response => {
   const headers = new Headers(response.headers);
   for (const [key, value] of Object.entries(GLOBAL_CORS)) {
@@ -188,6 +282,7 @@ const logRequest = async (
 ): Promise<void> => {
   const resContentType = resClone.headers.get("content-type");
   const entry: ApiLogEntry = {
+    direction: "inbound",
     ts: Date.now(),
     method: meta.method,
     path: meta.path,
@@ -207,6 +302,8 @@ export const onRequest = async (context: PagesContext): Promise<Response> => {
   const { request, env } = context;
   bridgeEnv(env);
   bridgeR2(env);
+  bridgeD1(env);
+  installOutboundLogging();
 
   const url = new URL(request.url);
   const { pathname } = url;
@@ -232,6 +329,7 @@ export const onRequest = async (context: PagesContext): Promise<Response> => {
         path: p.get("path"),
         status: num(p.get("status")) ?? null,
         q: p.get("q"),
+        direction: p.get("direction"),
       });
       return json(result, 200);
     } catch (err) {

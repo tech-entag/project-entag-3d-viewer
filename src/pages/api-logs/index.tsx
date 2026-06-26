@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useState } from 'react'
 
 interface ApiLogRow {
   id: number
+  direction: 'inbound' | 'outbound'
   ts: number
   method: string
   path: string
@@ -56,6 +57,7 @@ export default function ApiLogs() {
   const [page, setPage] = useState(0)
 
   // Filters (applied form). `draft` holds in-progress input until "Apply".
+  const [direction, setDirection] = useState('')
   const [method, setMethod] = useState('')
   const [path, setPath] = useState('')
   const [status, setStatus] = useState('')
@@ -68,6 +70,7 @@ export default function ApiLogs() {
       const params = new URLSearchParams()
       params.set('limit', String(PAGE_SIZE))
       params.set('offset', String(page * PAGE_SIZE))
+      if (direction) params.set('direction', direction)
       if (method) params.set('method', method)
       if (path) params.set('path', path)
       if (status) params.set('status', status)
@@ -80,7 +83,7 @@ export default function ApiLogs() {
     } finally {
       setLoading(false)
     }
-  }, [page, method, path, status, q])
+  }, [page, direction, method, path, status, q])
 
   useEffect(() => {
     void load()
@@ -104,6 +107,11 @@ export default function ApiLogs() {
       </p>
 
       <form onSubmit={applyFilters} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '12px 0' }}>
+        <select value={direction} onChange={(e) => setDirection(e.target.value)} style={{ padding: 6 }}>
+          <option value="">All traffic</option>
+          <option value="inbound">Inbound (→ /api)</option>
+          <option value="outbound">Outbound (→ Bubble)</option>
+        </select>
         <select value={method} onChange={(e) => setMethod(e.target.value)} style={{ padding: 6 }}>
           <option value="">All methods</option>
           {['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'].map((m) => (
@@ -124,6 +132,7 @@ export default function ApiLogs() {
         <thead>
           <tr style={{ background: '#fafafa' }}>
             <th style={cell}>Time</th>
+            <th style={cell}>Dir</th>
             <th style={cell}>Method</th>
             <th style={{ ...cell, whiteSpace: 'normal' }}>Path</th>
             <th style={cell}>Status</th>
@@ -139,6 +148,20 @@ export default function ApiLogs() {
                 style={{ cursor: 'pointer', background: expanded === r.id ? '#f0f6ff' : undefined }}
               >
                 <td style={cell}>{new Date(r.ts).toLocaleString()}</td>
+                <td style={cell}>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      padding: '1px 6px',
+                      borderRadius: 3,
+                      color: r.direction === 'outbound' ? '#6c3483' : '#1f618d',
+                      background: r.direction === 'outbound' ? '#f4ecf7' : '#eaf2f8',
+                    }}
+                  >
+                    {r.direction === 'outbound' ? '↗ out' : '↘ in'}
+                  </span>
+                </td>
                 <td style={{ ...cell, fontWeight: 600 }}>{r.method}</td>
                 <td style={{ ...cell, whiteSpace: 'normal', fontFamily: 'monospace' }}>
                   {r.path}{r.query ? <span style={{ color: '#999' }}>?{r.query}</span> : null}
@@ -149,7 +172,7 @@ export default function ApiLogs() {
               </tr>
               {expanded === r.id && (
                 <tr>
-                  <td colSpan={6} style={{ padding: 16, background: '#fbfbfb', borderBottom: '1px solid #eee' }}>
+                  <td colSpan={7} style={{ padding: 16, background: '#fbfbfb', borderBottom: '1px solid #eee' }}>
                     {r.error && (
                       <Section title="Error" body={r.error} color="#c0392b" />
                     )}
@@ -162,7 +185,7 @@ export default function ApiLogs() {
             </Fragment>
           ))}
           {!loading && rows.length === 0 && (
-            <tr><td colSpan={6} style={{ ...cell, color: '#888', textAlign: 'center' }}>No logs.</td></tr>
+            <tr><td colSpan={7} style={{ ...cell, color: '#888', textAlign: 'center' }}>No logs.</td></tr>
           )}
         </tbody>
       </table>

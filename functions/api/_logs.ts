@@ -21,7 +21,11 @@ export interface D1Like {
   };
 }
 
+export type LogDirection = "inbound" | "outbound";
+
 export interface ApiLogEntry {
+  /** "inbound" = request hitting /api/*; "outbound" = call the worker makes (e.g. to Bubble). */
+  direction: LogDirection;
   ts: number;
   method: string;
   path: string;
@@ -63,10 +67,11 @@ export const writeApiLog = async (
     await db
       .prepare(
         `INSERT INTO api_logs
-           (ts, method, path, query, status, duration_ms, ip, content_type, req_body, res_body, error)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (direction, ts, method, path, query, status, duration_ms, ip, content_type, req_body, res_body, error)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
+        entry.direction,
         entry.ts,
         entry.method,
         entry.path,
@@ -92,6 +97,7 @@ export interface QueryParams {
   path?: string | null;
   status?: number | null;
   q?: string | null;
+  direction?: string | null;
 }
 
 export interface QueryResult {
@@ -112,6 +118,10 @@ export const queryApiLogs = async (
   const where: string[] = [];
   const args: unknown[] = [];
 
+  if (params.direction) {
+    where.push("direction = ?");
+    args.push(params.direction.toLowerCase());
+  }
   if (params.method) {
     where.push("method = ?");
     args.push(params.method.toUpperCase());
@@ -139,7 +149,7 @@ export const queryApiLogs = async (
 
   const { results } = await db
     .prepare(
-      `SELECT id, ts, method, path, query, status, duration_ms, ip, content_type, req_body, res_body, error
+      `SELECT id, direction, ts, method, path, query, status, duration_ms, ip, content_type, req_body, res_body, error
          FROM api_logs ${whereSql}
         ORDER BY ts DESC
         LIMIT ? OFFSET ?`,
