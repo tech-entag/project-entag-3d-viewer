@@ -11,7 +11,7 @@ interface JsonObject {
 
 const STEP_FIXTURE_PATH =
   process.env.STEP_FIXTURE_PATH ||
-  path.resolve(process.cwd(), "cutting-blade-1-k110-1.STEP");
+  path.resolve(process.cwd(), "scripts/fixtures/cutting-blade-1-k110-1.STEP");
 const MOCK_PRICE_TWEAKER_PORT = Number(process.env.MOCK_PRICE_TWEAKER_PORT || 7788);
 const MOCK_PRICE_TWEAKER_ENDPOINT = `http://127.0.0.1:${MOCK_PRICE_TWEAKER_PORT}/mock/price-tweaking`;
 

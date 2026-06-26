@@ -53,7 +53,7 @@ async function main() {
   console.log("  Bucket OK:", bucketData.bucketKey);
 
   // 4. Read local STEP file
-  const filePath = path.join(__dirname, "..", "cutting-blade-1-k110-1.STEP");
+  const filePath = path.join(__dirname, "fixtures", "cutting-blade-1-k110-1.STEP");
   const fileBuffer = fs.readFileSync(filePath);
   const fileName = "cutting-blade-1-k110-1.STEP";
   console.log(`[3] File: ${fileName} (${fileBuffer.length} bytes)`);

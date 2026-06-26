@@ -14,7 +14,7 @@ async function main() {
   const token = match[1].replace(/[\r\n\s]/g, "");
   console.log("Token length:", token.length);
 
-  const filePath = path.join(__dirname, "..", "cutting-blade-1-k110-1.STEP");
+  const filePath = path.join(__dirname, "fixtures", "cutting-blade-1-k110-1.STEP");
   const buf = fs.readFileSync(filePath);
   console.log("File size:", buf.length);
 

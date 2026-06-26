@@ -4,7 +4,7 @@ const path = require("path");
 
 const app = express();
 const port = Number(process.env.MOCK_PRICE_TWEAKER_PORT || 7788);
-const stepFixturePath = process.env.STEP_FIXTURE_PATH || path.resolve(process.cwd(), "cutting-blade-1-k110-1.STEP");
+const stepFixturePath = process.env.STEP_FIXTURE_PATH || path.resolve(process.cwd(), "scripts/fixtures/cutting-blade-1-k110-1.STEP");
 
 let calls = [];
 
