@@ -22,6 +22,27 @@ export const PART_DATA_FIELDS = [
   "priceStatus",
   "shouldRetry",
   "ready",
+  // Extra DigiFabster model fields (GET /v2/models/{id}/).
+  "volume",
+  "surface",
+  "sheetTopSurfaceArea",
+  "perimeter",
+  "punchesCount",
+  "shells",
+  "sizeZForSheet",
+  "cncComplexity",
+  "cncComplexityLevel",
+  "cncFeatures",
+  "dfmFeatures",
+  "fileViewerUrl",
+  "fileOriginalUrl",
+  "fileStlOriginalUrl",
+  "fileStlRepairedUrl",
+  "geometryType",
+  "technologies",
+  "filesize",
+  "title",
+  "dateCreated",
 ] as const;
 
 export type PartDataField = (typeof PART_DATA_FIELDS)[number];

@@ -180,6 +180,12 @@ const run = async () => {
       fields: {
         image: false, thumbnails: false, dimX: false, dimY: false, dimZ: false, dimUnits: false,
         ready: false,
+        // All other model-derived fields off too, so nothing needs the /v2/models/ call.
+        volume: false, surface: false, sheetTopSurfaceArea: false, perimeter: false,
+        punchesCount: false, shells: false, sizeZForSheet: false, cncComplexity: false,
+        cncComplexityLevel: false, cncFeatures: false, dfmFeatures: false, fileViewerUrl: false,
+        fileOriginalUrl: false, fileStlOriginalUrl: false, fileStlRepairedUrl: false,
+        geometryType: false, technologies: false, filesize: false, title: false, dateCreated: false,
         materialId: true, materialSource: true, requestedPrice: true, priceStatus: true, shouldRetry: true,
       },
     });

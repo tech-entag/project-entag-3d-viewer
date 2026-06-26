@@ -1183,6 +1183,27 @@ export interface DigifabsterModelThumbnail {
   units: string | null;
   volume: number | null;
   surface: number | null;
+  /** Sheet-metal geometry stats (null for non-sheet parts). */
+  sheetTopSurfaceArea: number | null;
+  perimeter: number | null;
+  punchesCount: number | null;
+  shells: number | null;
+  sizeZForSheet: number | null;
+  /** CNC machining difficulty signals. */
+  cncComplexity: number | null;
+  cncComplexityLevel: number | null;
+  cncFeatures: unknown[] | null;
+  dfmFeatures: Record<string, unknown> | null;
+  /** File / viewer URLs + meta. */
+  fileViewerUrl: string | null;
+  fileOriginalUrl: string | null;
+  fileStlOriginalUrl: string | null;
+  fileStlRepairedUrl: string | null;
+  geometryType: string | null;
+  technologies: unknown[] | null;
+  filesize: string | null;
+  title: string | null;
+  dateCreated: string | null;
 }
 
 const asResponseRecord = (value: unknown): Record<string, unknown> =>
@@ -1193,6 +1214,12 @@ const optionalString = (value: unknown): string | null =>
 
 const optionalNumber = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
+
+const optionalArray = (value: unknown): unknown[] | null =>
+  Array.isArray(value) ? value : null;
+
+const optionalRecord = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 
 /**
  * POST /v2/orders/ — create an initial (draft) order, optionally linked to an
@@ -1727,6 +1754,24 @@ export const getDigifabsterModelThumbnail = async (
     units: optionalString(record.units),
     volume: optionalNumber(record.volume),
     surface: optionalNumber(record.surface),
+    sheetTopSurfaceArea: optionalNumber(record.sheet_top_surface_area),
+    perimeter: optionalNumber(record.perimeter),
+    punchesCount: optionalNumber(record.punches_count),
+    shells: optionalNumber(record.shells),
+    sizeZForSheet: optionalNumber(record.size_z_for_sheet),
+    cncComplexity: optionalNumber(record.cnc_complexity),
+    cncComplexityLevel: optionalNumber(record.cnc_complexity_level),
+    cncFeatures: optionalArray(record.cnc_features),
+    dfmFeatures: optionalRecord(record.dfm_features),
+    fileViewerUrl: optionalString(record.file_model_viewer_url),
+    fileOriginalUrl: optionalString(record.file_model_original_url),
+    fileStlOriginalUrl: optionalString(record.file_model_stl_original_url),
+    fileStlRepairedUrl: optionalString(record.file_model_stl_repaired_url),
+    geometryType: optionalString(record.geometry_type),
+    technologies: optionalArray(record.technologies),
+    filesize: optionalString(record.filesize),
+    title: optionalString(record.title),
+    dateCreated: optionalString(record.date_created),
   };
 };
 

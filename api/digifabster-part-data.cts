@@ -22,7 +22,12 @@
  *     dimX, dimY, dimZ, dimUnits,
  *     materialId, materialSource,
  *     requestedPrice, priceStatus, shouldRetry,
- *     ready            // image + dims + price all present
+ *     ready,           // image + dims + price all present
+ *     // Extra DigiFabster model fields (GET /v2/models/{id}/), all toggleable:
+ *     volume, surface, sheetTopSurfaceArea, perimeter, punchesCount, shells,
+ *     sizeZForSheet, cncComplexity, cncComplexityLevel, cncFeatures, dfmFeatures,
+ *     fileViewerUrl, fileOriginalUrl, fileStlOriginalUrl, fileStlRepairedUrl,
+ *     geometryType, technologies, filesize, title, dateCreated
  *   }
  */
 import {
@@ -124,7 +129,14 @@ const handle = async (input: PartDataInput, req: Request) => {
   const { fields } = await getPartDataConfig();
   const on = (f: PartDataField) => fields[f] === true;
 
-  const THUMB_FIELDS: PartDataField[] = ["image", "thumbnails", "dimX", "dimY", "dimZ", "dimUnits"];
+  const THUMB_FIELDS: PartDataField[] = [
+    "image", "thumbnails", "dimX", "dimY", "dimZ", "dimUnits",
+    // Extra DigiFabster model fields — all come from the same /v2/models/{id}/ call.
+    "volume", "surface", "sheetTopSurfaceArea", "perimeter", "punchesCount", "shells",
+    "sizeZForSheet", "cncComplexity", "cncComplexityLevel", "cncFeatures", "dfmFeatures",
+    "fileViewerUrl", "fileOriginalUrl", "fileStlOriginalUrl", "fileStlRepairedUrl",
+    "geometryType", "technologies", "filesize", "title", "dateCreated",
+  ];
   const PRICE_FIELDS: PartDataField[] = ["materialId", "materialSource", "requestedPrice", "priceStatus", "shouldRetry"];
   // `ready` derives from both, so it forces both upstream calls when enabled.
   const needsThumb = on("ready") || THUMB_FIELDS.some(on);
@@ -195,6 +207,27 @@ const handle = async (input: PartDataInput, req: Request) => {
     priceStatus: price.status ?? null,
     shouldRetry,
     ready,
+    // Extra DigiFabster model fields (off the same /v2/models/{id}/ response).
+    volume: thumb?.volume ?? null,
+    surface: thumb?.surface ?? null,
+    sheetTopSurfaceArea: thumb?.sheetTopSurfaceArea ?? null,
+    perimeter: thumb?.perimeter ?? null,
+    punchesCount: thumb?.punchesCount ?? null,
+    shells: thumb?.shells ?? null,
+    sizeZForSheet: thumb?.sizeZForSheet ?? null,
+    cncComplexity: thumb?.cncComplexity ?? null,
+    cncComplexityLevel: thumb?.cncComplexityLevel ?? null,
+    cncFeatures: thumb?.cncFeatures ?? null,
+    dfmFeatures: thumb?.dfmFeatures ?? null,
+    fileViewerUrl: thumb?.fileViewerUrl ?? null,
+    fileOriginalUrl: thumb?.fileOriginalUrl ?? null,
+    fileStlOriginalUrl: thumb?.fileStlOriginalUrl ?? null,
+    fileStlRepairedUrl: thumb?.fileStlRepairedUrl ?? null,
+    geometryType: thumb?.geometryType ?? null,
+    technologies: thumb?.technologies ?? null,
+    filesize: thumb?.filesize ?? null,
+    title: thumb?.title ?? null,
+    dateCreated: thumb?.dateCreated ?? null,
   };
 
   const payload: Record<string, unknown> = {};
