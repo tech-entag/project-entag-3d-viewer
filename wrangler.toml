@@ -47,3 +47,11 @@ DIGIFABSTER_DEFAULT_TOLERANCE_ID = "78bd2907-7b21-466e-b612-8bf71336a9b5"
 [[r2_buckets]]
 binding = "BLOB_BUCKET"
 bucket_name = "entag-3d-viewer"
+
+# D1 database for persistent API request logging (see functions/api/_logs.ts).
+# Apply the schema with:
+#   wrangler d1 migrations apply api-logs --remote   (and --local for `pages dev`)
+[[d1_databases]]
+binding = "API_LOGS_DB"
+database_name = "api-logs"
+database_id = "284a6156-8c06-4e52-92f2-91720da58274"

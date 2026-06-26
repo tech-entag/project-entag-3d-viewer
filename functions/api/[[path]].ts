@@ -33,6 +33,13 @@ import * as embedPartDefaults from "../../api/embed/parts/[vercelPartId]/default
 import * as embedPartReprice from "../../api/embed/parts/[vercelPartId]/reprice.cts";
 import * as embedPartViewer from "../../api/embed/parts/[vercelPartId]/viewer.cts";
 import * as internalStartProcessing from "../../api/internal/parts/[vercelPartId]/start-processing.cts";
+import {
+  writeApiLog,
+  queryApiLogs,
+  truncate,
+  type D1Like,
+  type ApiLogEntry,
+} from "./_logs";
 
 type Handler = (req: Request) => Response | Promise<Response>;
 type RouteModule = Record<string, unknown>;
@@ -40,6 +47,8 @@ type RouteModule = Record<string, unknown>;
 interface PagesContext {
   request: Request;
   env: Record<string, unknown>;
+  /** Provided by the Pages runtime; absent under some local setups. */
+  waitUntil?: (promise: Promise<unknown>) => void;
 }
 
 /** URL path (under the /api prefix) -> handler module. `:param` = one segment. */
@@ -132,29 +141,144 @@ const json = (payload: unknown, status: number): Response =>
     }),
   );
 
+/** Minimal structural shape we read for logging (avoids Request/Response generic clashes). */
+interface BodySource {
+  headers: { get(name: string): string | null };
+  text(): Promise<string>;
+}
+
+/** Read a body from a cloned Request/Response, but only when it's text-ish. */
+const captureBody = async (
+  source: BodySource,
+  contentType: string | null,
+): Promise<string | null> => {
+  const ct = (contentType ?? "").toLowerCase();
+  const textual =
+    ct.includes("json") ||
+    ct.includes("text") ||
+    ct.includes("xml") ||
+    ct.includes("x-www-form-urlencoded") ||
+    ct === "";
+  if (!textual) {
+    const len = source.headers.get("content-length");
+    return `[binary ${ct || "unknown"}${len ? `, ${len} bytes` : ""}]`;
+  }
+  try {
+    const text = await source.text();
+    return text ? truncate(text) : null;
+  } catch {
+    return null;
+  }
+};
+
+/** Best-effort: build a log entry from the captured request/response and persist it. */
+const logRequest = async (
+  db: D1Like,
+  reqClone: BodySource,
+  resClone: BodySource,
+  meta: {
+    method: string;
+    path: string;
+    query: string;
+    status: number;
+    duration_ms: number;
+    ip: string | null;
+    error: string | null;
+  },
+): Promise<void> => {
+  const resContentType = resClone.headers.get("content-type");
+  const entry: ApiLogEntry = {
+    ts: Date.now(),
+    method: meta.method,
+    path: meta.path,
+    query: meta.query || null,
+    status: meta.status,
+    duration_ms: meta.duration_ms,
+    ip: meta.ip,
+    content_type: resContentType,
+    req_body: await captureBody(reqClone, reqClone.headers.get("content-type")),
+    res_body: await captureBody(resClone, resContentType),
+    error: meta.error,
+  };
+  await writeApiLog(db, entry);
+};
+
 export const onRequest = async (context: PagesContext): Promise<Response> => {
   const { request, env } = context;
   bridgeEnv(env);
   bridgeR2(env);
 
-  const { pathname } = new URL(request.url);
-  const mod = matchRoute(pathname);
-
-  if (!mod) {
-    return json({ error: "Not Found", path: pathname }, 404);
-  }
-
+  const url = new URL(request.url);
+  const { pathname } = url;
   const method = request.method.toUpperCase();
-  const handler = mod[method] as Handler | undefined;
+  const db = env.API_LOGS_DB as D1Like | undefined;
 
-  if (typeof handler !== "function") {
-    // Generic preflight when the route doesn't define its own OPTIONS.
-    if (method === "OPTIONS") {
-      return withCors(new Response(null, { status: 204 }));
+  // Read endpoint backing the /api-logs page. Handled inline (not via a route
+  // module) because it needs the D1 binding object, not process.env strings.
+  // Not logged itself, to avoid self-noise.
+  if (pathname === "/api/logs") {
+    if (method === "OPTIONS") return withCors(new Response(null, { status: 204 }));
+    if (method !== "GET") {
+      return json({ error: "Method Not Allowed", method, path: pathname }, 405);
     }
-    return json({ error: "Method Not Allowed", method, path: pathname }, 405);
+    if (!db) return json({ error: "API_LOGS_DB binding not configured" }, 503);
+    try {
+      const p = url.searchParams;
+      const num = (v: string | null) => (v != null && v !== "" ? Number(v) : undefined);
+      const result = await queryApiLogs(db, {
+        limit: num(p.get("limit")),
+        offset: num(p.get("offset")),
+        method: p.get("method"),
+        path: p.get("path"),
+        status: num(p.get("status")) ?? null,
+        q: p.get("q"),
+      });
+      return json(result, 200);
+    } catch (err) {
+      return json({ error: "Failed to query logs", detail: String(err) }, 500);
+    }
   }
 
-  const response = await handler(request);
-  return withCors(response);
+  const start = Date.now();
+  // Clone before the handler consumes the request body stream.
+  const reqClone = db ? request.clone() : null;
+  let error: string | null = null;
+
+  const produce = async (): Promise<Response> => {
+    const mod = matchRoute(pathname);
+    if (!mod) return json({ error: "Not Found", path: pathname }, 404);
+
+    const handler = mod[method] as Handler | undefined;
+    if (typeof handler !== "function") {
+      // Generic preflight when the route doesn't define its own OPTIONS.
+      if (method === "OPTIONS") return withCors(new Response(null, { status: 204 }));
+      return json({ error: "Method Not Allowed", method, path: pathname }, 405);
+    }
+    return withCors(await handler(request));
+  };
+
+  let response: Response;
+  try {
+    response = await produce();
+  } catch (err) {
+    error = err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err);
+    response = json({ error: "Internal Server Error" }, 500);
+  }
+
+  if (db && reqClone) {
+    const resClone = response.clone();
+    const logPromise = logRequest(db, reqClone, resClone, {
+      method,
+      path: pathname,
+      query: url.search.replace(/^\?/, ""),
+      status: response.status,
+      duration_ms: Date.now() - start,
+      ip: request.headers.get("CF-Connecting-IP"),
+      error,
+    });
+    if (context.waitUntil) context.waitUntil(logPromise);
+    else void logPromise;
+  }
+
+  return response;
 };
