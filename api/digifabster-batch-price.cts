@@ -5,21 +5,18 @@ import {
   type DigifabsterBatchPriceResult,
 } from "./autodesk_helpers/digifabster-sync";
 import { getPricingConfig } from "./autodesk_helpers/pricing-config";
+import { resolveBubbleVersionSegment } from "./autodesk_helpers/bubble-version";
 
 export const config = {
   maxDuration: 60,
 };
 
-// Default Bubble Data API base. NOTE: switch `version-test` -> `version-live`
-// for production (or set BUBBLE_DATA_API_BASE_URL / pass it in the body).
-const DEFAULT_BUBBLE_DATA_API_BASE_URL = "https://app.entag.co/version-test/api/1.1/obj";
-
-// The price writes to the Bubble `OrderPart` thing, field `requestedPrice`.
-const DEFAULT_BUBBLE_PRICE_TYPE = "OrderPart";
-const DEFAULT_BUBBLE_COST_FIELD = "requestedPrice";
-// The resolved material id is also written to the OrderPart (Bubble feeds it
-// into the place-order call). Field name overridable; empty disables the write.
-const DEFAULT_BUBBLE_MATERIAL_FIELD = "materialId";
+// Bubble workflow webhook. Once a price is ready we POST { part_id } here and
+// Bubble fetches the part data itself (we no longer PATCH the OrderPart). The
+// version segment (version-test / version-live) is chosen per-request from the
+// `version` field. Override the whole URL via BUBBLE_WEBHOOK_URL / body.
+const BUBBLE_WEBHOOK_HOST = "https://entag-10502.bubbleapps.io";
+const BUBBLE_WEBHOOK_WORKFLOW = "wh_orderpart_trigger";
 
 // Delivery lead-time priority used by live batch_price/material calls that
 // return prices. Used when neither the body nor DIGIFABSTER_DEFAULT_LEAD_TIME_IDS
@@ -90,39 +87,26 @@ const asRecord = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 
 /* ------------------------------------------------------------------ */
-/*  Bubble Data API                                                   */
+/*  Bubble workflow webhook                                           */
 /* ------------------------------------------------------------------ */
 
-const normalizeBubbleDataApiBaseUrl = (raw: string | null): string => {
-  if (!raw || !raw.trim()) return DEFAULT_BUBBLE_DATA_API_BASE_URL;
-  const trimmed = raw.trim().replace(/\/+$/, "");
-  if (trimmed.includes("/api/1.1/obj")) return trimmed;
-  if (trimmed.includes("/version-")) return `${trimmed}/api/1.1/obj`;
-  return `${trimmed}/version-test/api/1.1/obj`;
-};
-
-const buildBubbleDataApiHeaders = (token: string) => {
-  const normalizedToken = token.replace(/^Bearer\s+/i, "").trim();
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${normalizedToken}`,
-  };
-};
-
-/** PATCH a Bubble thing with an arbitrary field payload. */
-const patchBubbleThing = async (params: {
-  baseUrl: string;
-  token: string;
-  thingType: string;
-  thingId: string;
-  payload: Record<string, unknown>;
+/** POST { part_id } to the Bubble workflow webhook so Bubble fetches the part
+ *  data itself. An optional bearer token is sent when one is configured (the
+ *  webhook can be public or token-protected). */
+const triggerBubbleWebhook = async (params: {
+  url: string;
+  token: string | null;
+  partId: string;
 }) => {
-  const endpoint = `${params.baseUrl}/${encodeURIComponent(params.thingType)}/${encodeURIComponent(params.thingId)}`;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (params.token) headers.Authorization = `Bearer ${params.token.replace(/^Bearer\s+/i, "").trim()}`;
 
-  const response = await fetch(endpoint, {
-    method: "PATCH",
-    headers: buildBubbleDataApiHeaders(params.token),
-    body: JSON.stringify(params.payload),
+  const payload = { part_id: params.partId };
+
+  const response = await fetch(params.url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
   });
 
   const responseText = await response.text();
@@ -135,7 +119,7 @@ const patchBubbleThing = async (params: {
     }
   }
 
-  return { ok: response.ok, status: response.status, endpoint, payload: params.payload, responseData };
+  return { ok: response.ok, status: response.status, endpoint: params.url, payload, responseData };
 };
 
 /* ------------------------------------------------------------------ */
@@ -376,100 +360,57 @@ export async function POST(req: Request) {
         }
       : null;
 
-  /* ---- PATCH the price back to Bubble (field literally `[price]manufacturingCost`) ---- */
+  /* ---- Trigger the Bubble webhook (Bubble then fetches the part data) ---- */
+  // We no longer PATCH the OrderPart. Once a price is ready we POST { part_id }
+  // to a Bubble workflow webhook and Bubble pulls the data itself
+  // (e.g. via /api/digifabster-part-data). Optional bearer token if protected.
+  // Explicit URL (body/env) wins; otherwise build it from the requested version.
+  const bubbleVersionSegment = resolveBubbleVersionSegment(
+    pickString(body.version, body.bubbleVersion, body.bubble_version),
+  );
+  const bubbleWebhookUrl =
+    pickString(body.bubbleWebhookUrl, body.bubble_webhook_url, process.env.BUBBLE_WEBHOOK_URL) ||
+    `${BUBBLE_WEBHOOK_HOST}/${bubbleVersionSegment}/api/1.1/wf/${BUBBLE_WEBHOOK_WORKFLOW}`;
   const bubbleToken = pickString(
     body.bubble_api_token,
     body.bubbleApiToken,
+    process.env.BUBBLE_WEBHOOK_TOKEN,
     process.env.BUBBLE_DATA_API_TOKEN,
     process.env.BUBBLE_API_TOKEN,
     process.env.BUBBLE_DATA_API_BEARER_TOKEN,
   );
-  const bubbleBaseUrl = normalizeBubbleDataApiBaseUrl(
-    pickString(body.bubble_data_api_base_url, body.bubbleDataApiBaseUrl, process.env.BUBBLE_DATA_API_BASE_URL),
-  );
-  const bubbleThingType =
-    pickString(body.bubble_price_type, body.bubblePriceType, process.env.BUBBLE_PRICE_TYPE) || DEFAULT_BUBBLE_PRICE_TYPE;
-  const bubbleCostField =
-    pickString(body.bubble_manufacturing_cost_field, body.bubbleManufacturingCostField, process.env.BUBBLE_MANUFACTURING_COST_FIELD) ||
-    DEFAULT_BUBBLE_COST_FIELD;
-  // Resolve the material-id field name; "" (explicit empty) disables the write.
-  const bubbleMaterialFieldRaw = pickString(
-    body.bubble_material_field,
-    body.bubbleMaterialField,
-    process.env.BUBBLE_MATERIAL_FIELD,
-  );
-  const bubbleMaterialField =
-    bubbleMaterialFieldRaw ??
-    (body.bubble_material_field === "" || process.env.BUBBLE_MATERIAL_FIELD === ""
-      ? null
-      : DEFAULT_BUBBLE_MATERIAL_FIELD);
-  // The price now writes to the OrderPart thing, so its id (part_id) is the
-  // target. Explicit priceId still wins; order ids remain as fallbacks.
-  const priceId = pickString(
-    body.priceId,
-    body.price_id,
-    body.bubblePriceId,
-    body.bubble_price_id,
-    body.partId,
-    body.part_id,
-    body.orderId,
-    body.order_id,
-    body.bubbleOrderId,
-    body.bubble_order_id,
-  );
+  // The OrderPart's Bubble id — what the webhook carries so Bubble can locate
+  // the thing to update.
+  const partId = pickString(body.part_id, body.partId, body.priceId, body.price_id);
+
+  // Read-only callers (e.g. /api/digifabster-part-data reusing this route) pass
+  // bubbleWebhook:false so the trigger never fires for a pure data fetch.
+  const webhookEnabled = body.bubbleWebhook !== false && body.bubble_webhook !== false;
 
   let bubbleUpdate: Record<string, unknown>;
-  if (selectedPrice && priceId && bubbleToken) {
-    // Write the PRICE on its own PATCH so a missing/extra material field can
-    // never block it (Bubble validates a PATCH atomically).
-    const update = await patchBubbleThing({
-      baseUrl: bubbleBaseUrl,
+  if (webhookEnabled && selectedPrice && partId) {
+    const triggered = await triggerBubbleWebhook({
+      url: bubbleWebhookUrl,
       token: bubbleToken,
-      thingType: bubbleThingType,
-      thingId: priceId,
-      payload: { [bubbleCostField]: selectedPrice.cost },
+      partId,
     });
-
-    // Best-effort, SEPARATE PATCH for materialId — its failure is reported but
-    // does not affect the price write.
-    let materialWrite: Record<string, unknown> | undefined;
-    if (bubbleMaterialField && typeof materialId === "number" && Number.isFinite(materialId)) {
-      const matUpdate = await patchBubbleThing({
-        baseUrl: bubbleBaseUrl,
-        token: bubbleToken,
-        thingType: bubbleThingType,
-        thingId: priceId,
-        // The Bubble OrderPart `materialId` field is TEXT, so send it as a string.
-        payload: { [bubbleMaterialField]: String(materialId) },
-      });
-      materialWrite = {
-        status: matUpdate.ok ? "updated" : "failed",
-        httpStatus: matUpdate.status,
-        field: bubbleMaterialField,
-        materialId,
-        ...(matUpdate.ok ? {} : { responseData: matUpdate.responseData }),
-      };
-    }
-
     bubbleUpdate = {
-      status: update.ok ? "updated" : "failed",
-      httpStatus: update.status,
-      endpoint: update.endpoint,
-      field: bubbleCostField,
-      cost: selectedPrice.cost,
-      ...(materialWrite ? { materialWrite } : {}),
-      ...(update.ok ? {} : { responseData: update.responseData }),
+      status: triggered.ok ? "triggered" : "failed",
+      httpStatus: triggered.status,
+      endpoint: triggered.endpoint,
+      payload: triggered.payload,
+      ...(triggered.ok ? {} : { responseData: triggered.responseData }),
     };
   } else {
     bubbleUpdate = {
       status: "skipped",
-      reason: !selectedPrice
-        ? result.status === "analysing"
-          ? "still_analysing"
-          : "no_price_available"
-        : !priceId
-          ? "missing_price_id"
-          : "missing_bubble_token",
+      reason: !webhookEnabled
+        ? "webhook_disabled"
+        : !selectedPrice
+          ? result.status === "analysing"
+            ? "still_analysing"
+            : "no_price_available"
+          : "missing_part_id",
     };
   }
 

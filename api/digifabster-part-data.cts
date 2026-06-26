@@ -139,6 +139,7 @@ const handle = async (input: PartDataInput, req: Request) => {
           objectModelId: input.modelId,
           attempts: input.attempts ?? 1, // single fast attempt; caller polls
           traceId,
+          bubbleWebhook: false, // read-only: never trigger the Bubble webhook here
         };
         if (input.partId) priceBody.part_id = input.partId;
         if (input.materialId) priceBody.materialId = input.materialId;

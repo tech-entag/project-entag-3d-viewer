@@ -8,13 +8,16 @@ import {
 } from "./autodesk_helpers/digifabster-sync";
 import { shouldSkipAutodeskTranslationForSource } from "./autodesk_helpers/format-map";
 import { ensureViewerBubbleInBlob } from "./autodesk_helpers/viewer-cache";
+import { resolveBubbleVersionSegment } from "./autodesk_helpers/bubble-version";
 
 export const config = {
   maxDuration: 60,
 };
 
 const createTraceId = () => `conversion-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-const DEFAULT_BUBBLE_DATA_API_BASE_URL = "https://app.entag.co/version-test/api/1.1/obj";
+// Bubble app host (no version segment). The version segment (version-test /
+// version-live) is chosen per-request from the `version` field Bubble sends.
+const BUBBLE_APP_BASE_URL = "https://app.entag.co";
 
 const traceTimeline = new Map<string, string[]>();
 
@@ -136,9 +139,10 @@ const fileNameFromSourceUrl = (sourceUrl: string | null) => {
   }
 };
 
-const normalizeBubbleDataApiBaseUrl = (raw: string | null) => {
+const normalizeBubbleDataApiBaseUrl = (raw: string | null, versionSegment: string) => {
   if (!raw || !raw.trim()) {
-    return DEFAULT_BUBBLE_DATA_API_BASE_URL;
+    // No explicit base URL: build from the app host + the requested version.
+    return `${BUBBLE_APP_BASE_URL}/${versionSegment}/api/1.1/obj`;
   }
 
   const trimmed = raw.trim().replace(/\/+$/, "");
@@ -150,7 +154,7 @@ const normalizeBubbleDataApiBaseUrl = (raw: string | null) => {
     return `${trimmed}/api/1.1/obj`;
   }
 
-  return `${trimmed}/version-test/api/1.1/obj`;
+  return `${trimmed}/${versionSegment}/api/1.1/obj`;
 };
 
 const pickBubbleDataApiToken = (...values: unknown[]) => {
@@ -652,8 +656,12 @@ export async function POST(req: Request) {
     const bubbleDimYField = pickString(process.env.BUBBLE_DIM_Y_FIELD) || "dimY";
     const bubbleDimZField = pickString(process.env.BUBBLE_DIM_Z_FIELD) || "dimZ";
     const bubbleDimUnitsField = pickString(process.env.BUBBLE_DIM_UNITS_FIELD) || "dimUnits";
+    // The caller's `version` (version-test / version-live) selects which Bubble
+    // app the OrderPart update targets, unless an explicit base URL is given.
+    const bubbleVersionSegment = resolveBubbleVersionSegment(version);
     const bubbleDataApiBaseUrlResolved = normalizeBubbleDataApiBaseUrl(
       pickString(bubble_data_api_base_url, bubbleDataApiBaseUrl, process.env.BUBBLE_DATA_API_BASE_URL),
+      bubbleVersionSegment,
     );
 
     if (quoteUpload?.objectModelId && partIdForUpdate) {
@@ -685,17 +693,26 @@ export async function POST(req: Request) {
           try {
             const model = await getDigifabsterModelThumbnail(quoteUpload.objectModelId, traceId);
             thumbnailUrl = model.thumb300x300 || model.thumb120x120 || model.thumb;
-            const dims: Record<string, unknown> = {};
-            if (model.sizeX !== null) dims[bubbleDimXField] = model.sizeX;
-            if (model.sizeY !== null) dims[bubbleDimYField] = model.sizeY;
-            if (model.sizeZ !== null) dims[bubbleDimZField] = model.sizeZ;
             // `units` is returned early (static); the bounding box is computed
             // asynchronously. Only treat dimensions as "written" once at least one
             // numeric size is present — otherwise the follow-up loop would stop
             // early on units alone, before x/y/z exist.
-            const hasNumericDimension = Object.keys(dims).length > 0;
-            if (hasNumericDimension && model.units !== null) dims[bubbleDimUnitsField] = model.units;
-            if (hasNumericDimension) dimensionFields = dims;
+            const hasNumericDimension = [model.sizeX, model.sizeY, model.sizeZ].some(
+              (v) => typeof v === "number" && Number.isFinite(v),
+            );
+            if (hasNumericDimension) {
+              // Once any axis is computed, write all three. Bubble's dim fields
+              // are numbers, so a 0 or null/unset axis is sent as the number 0.
+              const toDim = (v: unknown): number =>
+                typeof v === "number" && Number.isFinite(v) ? v : 0;
+              const dims: Record<string, unknown> = {
+                [bubbleDimXField]: toDim(model.sizeX),
+                [bubbleDimYField]: toDim(model.sizeY),
+                [bubbleDimZField]: toDim(model.sizeZ),
+              };
+              if (model.units !== null) dims[bubbleDimUnitsField] = model.units;
+              dimensionFields = dims;
+            }
           } catch (thumbnailError) {
             logStep(traceId, "bubble.orderpart.thumbnail.skipped", {
               orderPartId: partIdForUpdate,

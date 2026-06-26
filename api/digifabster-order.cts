@@ -7,12 +7,15 @@ import {
   type DigifabsterOrderCustomer,
   type DigifabsterOrderStatus,
 } from "./autodesk_helpers/digifabster-sync";
+import { resolveBubbleVersionSegment } from "./autodesk_helpers/bubble-version";
 
 export const config = {
   maxDuration: 60,
 };
 
-const DEFAULT_BUBBLE_DATA_API_BASE_URL = "https://app.entag.co/version-test/api/1.1/obj";
+// Bubble app host (no version segment). The version segment is chosen
+// per-request from the `version` field Bubble sends.
+const BUBBLE_APP_BASE_URL = "https://app.entag.co";
 
 /* ------------------------------------------------------------------ */
 /*  HTTP helpers                                                      */
@@ -67,12 +70,12 @@ const asRecord = (value: unknown): Record<string, unknown> | null =>
 /*  Bubble Data API                                                   */
 /* ------------------------------------------------------------------ */
 
-const normalizeBubbleDataApiBaseUrl = (raw: string | null): string => {
-  if (!raw || !raw.trim()) return DEFAULT_BUBBLE_DATA_API_BASE_URL;
+const normalizeBubbleDataApiBaseUrl = (raw: string | null, versionSegment: string): string => {
+  if (!raw || !raw.trim()) return `${BUBBLE_APP_BASE_URL}/${versionSegment}/api/1.1/obj`;
   const trimmed = raw.trim().replace(/\/+$/, "");
   if (trimmed.includes("/api/1.1/obj")) return trimmed;
   if (trimmed.includes("/version-")) return `${trimmed}/api/1.1/obj`;
-  return `${trimmed}/version-test/api/1.1/obj`;
+  return `${trimmed}/${versionSegment}/api/1.1/obj`;
 };
 
 const buildBubbleDataApiHeaders = (token: string) => {
@@ -293,8 +296,12 @@ export async function POST(req: Request) {
     process.env.BUBBLE_API_TOKEN,
     process.env.BUBBLE_DATA_API_BEARER_TOKEN,
   );
+  const bubbleVersionSegment = resolveBubbleVersionSegment(
+    pickString(body.version, body.bubbleVersion, body.bubble_version),
+  );
   const bubbleBaseUrl = normalizeBubbleDataApiBaseUrl(
     pickString(body.bubble_data_api_base_url, body.bubbleDataApiBaseUrl, process.env.BUBBLE_DATA_API_BASE_URL),
+    bubbleVersionSegment,
   );
   const bubbleThingType =
     pickString(body.bubble_orderpart_type, body.bubbleOrderPartType, process.env.BUBBLE_ORDERPART_TYPE) || "orderpart";

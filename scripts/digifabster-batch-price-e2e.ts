@@ -28,7 +28,7 @@ interface Captured {
   batchPriceCalls: number;
   preselectionCalls: number;
   lastBatchPriceBody: Json | null;
-  bubblePatches: Array<{ url: string; body: Json }>;
+  webhookCalls: Array<{ url: string; body: Json }>;
 }
 
 // Mirrors a real preselection config: a required field (thickness) plus fields
@@ -124,10 +124,10 @@ const startMockServer = async (captured: Captured): Promise<Server> => {
       return;
     }
 
-    // --- Bubble Data API: OrderPart PATCH (requestedPrice) ---
-    if (method === "PATCH" && url.startsWith("/api/1.1/obj/OrderPart/")) {
+    // --- Bubble workflow webhook: { modelID } (Bubble then fetches the data) ---
+    if (method === "POST" && url.endsWith("/wf/wh_orderpart_trigger")) {
       const raw = (await readBuffer(req)).toString("utf8");
-      captured.bubblePatches.push({ url, body: raw.trim() ? (JSON.parse(raw) as Json) : {} });
+      captured.webhookCalls.push({ url, body: raw.trim() ? (JSON.parse(raw) as Json) : {} });
       sendJson(res, 200, { status: "success" });
       return;
     }
@@ -148,7 +148,7 @@ const run = async () => {
     batchPriceCalls: 0,
     preselectionCalls: 0,
     lastBatchPriceBody: null,
-    bubblePatches: [],
+    webhookCalls: [],
   };
 
   const server = await startMockServer(captured);
@@ -160,6 +160,7 @@ const run = async () => {
   process.env.DIGIFABSTER_API_KEY = "mock-api-key";
   process.env.DIGIFABSTER_BATCH_PRICE_ATTEMPTS = "5";
   process.env.DIGIFABSTER_BATCH_PRICE_INTERVAL_MS = "10"; // tiny poll for the test
+  process.env.BUBBLE_WEBHOOK_URL = `${base}/wf/wh_orderpart_trigger`; // hermetic default
   delete process.env.DIGIFABSTER_UPLOAD_SHARED_SECRET;
 
   try {
@@ -178,10 +179,10 @@ const run = async () => {
         leadTime: [LEAD_TIME_A, LEAD_TIME_B],
         count: [1, 5, 10],
         traceId: "batch-price-e2e",
-        // Bubble write target (thing type `OrderPart`, field `requestedPrice`).
+        // OrderPart id carried by the webhook so Bubble can locate the thing.
         part_id: "orderpart-xyz",
-        bubbleApiToken: "mock-bubble-token",
-        bubbleDataApiBaseUrl: `${base}/api/1.1/obj`,
+        // Bubble workflow webhook target (Bubble fetches the part data itself).
+        bubbleWebhookUrl: `${base}/wf/wh_orderpart_trigger`,
         // Editable price multiplier (R2 config in prod; body override here).
         priceMultiplier: 1.54,
       }),
@@ -230,23 +231,15 @@ const run = async () => {
     assert.equal(selectedPrice.cost, 84.7, "final cost = base * multiplier");
 
     const bubble = data.bubble as Json;
-    assert.equal(bubble.status, "updated", "Bubble write should succeed");
-    assert.equal(bubble.field, "requestedPrice", "writes the requestedPrice field");
-    // Price and materialId are written as SEPARATE PATCHes (a bad material
-    // field must not block the price), so there are two captured PATCHes.
-    assert.equal(captured.bubblePatches.length, 2, "two separate PATCHes (price + materialId)");
-    const pricePatch = captured.bubblePatches.find((p) => "requestedPrice" in p.body);
-    const materialPatch = captured.bubblePatches.find((p) => "materialId" in p.body);
-    assert.ok(pricePatch, "a PATCH writes requestedPrice");
-    assert.equal(pricePatch?.url, "/api/1.1/obj/OrderPart/orderpart-xyz", "price PATCH targets the OrderPart thing");
-    assert.equal(pricePatch?.body.requestedPrice, 84.7, "price PATCH sets multiplied requestedPrice");
-    assert.ok(materialPatch, "a separate PATCH writes materialId");
-    // Bubble's materialId field is TEXT -> sent as a string.
-    assert.equal(materialPatch?.body.materialId, String(MATERIAL_ID), "material PATCH writes materialId as a string");
-    assert.equal((bubble.materialWrite as Json)?.field, "materialId", "Bubble write reports the materialId field");
-    assert.equal((bubble.materialWrite as Json)?.status, "updated", "materialId write succeeded");
+    assert.equal(bubble.status, "triggered", "Bubble webhook should fire once a price is ready");
+    // One webhook call carrying { modelID } as a string.
+    assert.equal(captured.webhookCalls.length, 1, "exactly one webhook trigger");
+    const webhook = captured.webhookCalls[0];
+    assert.ok(webhook.url.endsWith("/wf/wh_orderpart_trigger"), "webhook hits the workflow endpoint");
+    assert.equal(webhook.body.part_id, "orderpart-xyz", "webhook body carries part_id");
+    assert.deepEqual((bubble.payload as Json), { part_id: "orderpart-xyz" }, "reported payload matches");
 
-    console.log("\n[suite] Scenario 1 PASS — batch-price (202 -> 200, matrix parsed, price -> Bubble)");
+    console.log("\n[suite] Scenario 1 PASS — batch-price (202 -> 200, matrix parsed, webhook triggered)");
     console.log(JSON.stringify({ selectedPrice: data.selectedPrice, bubble: data.bubble }, null, 2));
 
     /* ---- Scenario 2: material auto-resolved via preselection (no materialId) ---- */
