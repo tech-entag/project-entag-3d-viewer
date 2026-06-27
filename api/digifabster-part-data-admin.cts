@@ -211,7 +211,10 @@ async function saveGroups() {
   el("saveGroups").disabled = true;
   setGroupsStatus("Saving…");
   try {
-    const r = await fetch(GROUPS_URL, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ groups: parsed }) });
+    // Accept either the inner map ({ "72460": "Aluminium" }) or the full body
+    // ({ "groups": {...} }) so a pasted full export doesn't get double-wrapped.
+    const payload = parsed && typeof parsed === "object" && parsed.groups ? parsed : { groups: parsed };
+    const r = await fetch(GROUPS_URL, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const data = await r.json();
     if (r.ok && data.status === "saved") {
       el("groups").value = JSON.stringify(data.groups || {}, null, 2); // reflect sanitized result
