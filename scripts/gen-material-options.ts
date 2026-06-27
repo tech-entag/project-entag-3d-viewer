@@ -42,7 +42,7 @@ interface Tol { id?: string; name_for_user?: string; display_name?: string; devi
 interface Material { id?: number; title?: string; post_production?: PostProd[]; tolerance?: Tol[] }
 
 const COLUMNS = [
-  "optionType", "materialId", "materialName", "family", "group", "name", "uuid",
+  "optionType", "technology", "materialId", "materialName", "family", "group", "name", "uuid",
   "price", "price_units", "displayName", "deviationFrom", "deviationTo", "margin", "rawGroup",
 ];
 
@@ -71,9 +71,11 @@ const main = async () => {
   const catalog = (await catRes.json()) as { results?: Array<{ materials?: Material[] }> };
   const groups = ((await cfgRes.json()) as { groups?: Record<string, string> }).groups ?? {};
 
-  const byId = new Map<number, Material>();
+  // Each materialId belongs to exactly one technology, so capture its title.
+  const byId = new Map<number, { material: Material; technology: string }>();
   for (const tech of catalog.results ?? []) {
-    for (const m of tech.materials ?? []) if (typeof m.id === "number") byId.set(m.id, m);
+    const technology = (tech as { title?: string }).title ?? "";
+    for (const m of tech.materials ?? []) if (typeof m.id === "number") byId.set(m.id, { material: m, technology });
   }
 
   const lines: string[] = [COLUMNS.join(",")];
@@ -81,9 +83,10 @@ const main = async () => {
   let tol = 0;
   const ids = Object.keys(groups).map(Number).sort((a, b) => a - b);
   for (const id of ids) {
-    const m = byId.get(id);
-    if (!m) continue;
-    const base = { materialId: id, materialName: m.title ?? "", family: groups[String(id)] };
+    const entry = byId.get(id);
+    if (!entry) continue;
+    const m = entry.material;
+    const base = { technology: entry.technology, materialId: id, materialName: m.title ?? "", family: groups[String(id)] };
     for (const p of m.post_production ?? []) {
       const name = (p.title ?? "").trim();
       lines.push(row({
