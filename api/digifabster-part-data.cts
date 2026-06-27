@@ -21,8 +21,8 @@
  *     image, thumbnails: { thumb, thumb120x120, thumb300x300, status },
  *     dimX, dimY, dimZ, dimUnits,
  *     materialId, materialSource,
- *     materialGroup,   // technology title from catalog, e.g. "Steel" / "Aluminium"
- *     materialName,    // material title from catalog, e.g. "St37 / S235JR / 1.0570"
+ *     materialGroup,   // family from manual R2 map, e.g. "Steel" / "Aluminium"
+ *     materialName,    // grade title from catalog, e.g. "St37 / S235JR / 1.0570"
  *     requestedPrice, priceStatus, shouldRetry,
  *     ready,           // image + dims + price all present
  *     // Extra DigiFabster model fields (GET /v2/models/{id}/), all toggleable:
@@ -43,6 +43,11 @@ import {
   buildMaterialIndex,
   type EnrichedMaterial,
 } from "./autodesk_helpers/widget-technologies-store";
+import {
+  getMaterialGroupConfig,
+  lookupMaterialGroup,
+  type MaterialGroupConfig,
+} from "./autodesk_helpers/material-group-config";
 
 export const config = {
   maxDuration: 60,
@@ -145,9 +150,12 @@ const handle = async (input: PartDataInput, req: Request) => {
     "geometryType", "technologies", "filesize", "title", "dateCreated",
   ];
   const PRICE_FIELDS: PartDataField[] = ["materialId", "materialSource", "requestedPrice", "priceStatus", "shouldRetry"];
-  // Human-readable material name/group, translated from materialId via the catalog.
-  const MATERIAL_META_FIELDS: PartDataField[] = ["materialGroup", "materialName"];
-  const needsMaterialMeta = MATERIAL_META_FIELDS.some(on);
+  // Human-readable material, translated from materialId: `materialName` is the
+  // grade title from the widget-technologies catalog; `materialGroup` is the
+  // family ("Steel"/"Aluminium") from the manual R2 mapping (config/material-groups.json).
+  const needsMaterialName = on("materialName");
+  const needsMaterialGroup = on("materialGroup");
+  const needsMaterialMeta = needsMaterialName || needsMaterialGroup;
   // `ready` derives from both, so it forces both upstream calls when enabled.
   const needsThumb = on("ready") || THUMB_FIELDS.some(on);
   // Material meta needs the resolved materialId, which comes from the price route.
@@ -186,26 +194,33 @@ const handle = async (input: PartDataInput, req: Request) => {
     ? getDigifabsterModelThumbnail(input.modelId, traceId).catch(() => null)
     : Promise.resolve(null);
 
-  // Material catalog (cached in R2) — loaded in parallel; the per-material lookup
-  // happens after the price call resolves the materialId. Best-effort: a catalog
-  // failure leaves materialGroup/materialName null rather than failing the call.
-  const materialIndexPromise: Promise<Map<number, EnrichedMaterial> | null> = needsMaterialMeta
+  // Material catalog (cached in R2) for the grade name; loaded in parallel. The
+  // per-material lookup happens after the price call resolves the materialId.
+  // Best-effort: a catalog failure leaves materialName null, never fails the call.
+  const materialIndexPromise: Promise<Map<number, EnrichedMaterial> | null> = needsMaterialName
     ? loadWidgetTechnologies(traceId)
         .then((r) => buildMaterialIndex(r.catalog.results))
         .catch(() => null)
     : Promise.resolve(null);
+  // Manual materialId -> group mapping (R2) for the family label.
+  const materialGroupCfgPromise: Promise<MaterialGroupConfig | null> = needsMaterialGroup
+    ? getMaterialGroupConfig().catch(() => null)
+    : Promise.resolve(null);
 
-  const [priceRaw, thumb, materialIndex] = await Promise.all([
+  const [priceRaw, thumb, materialIndex, materialGroupCfg] = await Promise.all([
     pricePromise,
     thumbPromise,
     materialIndexPromise,
+    materialGroupCfgPromise,
   ]);
   const price = asRecord(priceRaw);
   const selected = asRecord(price.selectedPrice);
 
-  // Translate the resolved materialId into group (technology title) + name (title).
+  // Translate the resolved materialId into name (catalog title) + group (manual map).
   const resolvedMaterialId = typeof price.materialId === "number" ? price.materialId : input.materialId;
   const material = materialIndex && resolvedMaterialId ? materialIndex.get(resolvedMaterialId) ?? null : null;
+  const materialGroup =
+    materialGroupCfg && resolvedMaterialId ? lookupMaterialGroup(materialGroupCfg, resolvedMaterialId) : null;
 
   const image = thumb ? thumb.thumb300x300 || thumb.thumb120x120 || thumb.thumb : null;
   const requestedPrice = typeof selected.cost === "number" ? selected.cost : null;
@@ -232,7 +247,7 @@ const handle = async (input: PartDataInput, req: Request) => {
     dimUnits: thumb?.units ?? null,
     materialId: price.materialId ?? null,
     materialSource: price.materialSource ?? null,
-    materialGroup: material?.technologyTitle ?? null,
+    materialGroup,
     materialName: material?.title ?? null,
     requestedPrice,
     priceStatus: price.status ?? null,

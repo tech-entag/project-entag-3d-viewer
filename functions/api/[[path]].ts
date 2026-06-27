@@ -22,6 +22,7 @@ import * as digifabsterOrder from "../../api/digifabster-order.cts";
 import * as digifabsterPartData from "../../api/digifabster-part-data.cts";
 import * as digifabsterPartDataAdmin from "../../api/digifabster-part-data-admin.cts";
 import * as digifabsterPartDataConfig from "../../api/digifabster-part-data-config.cts";
+import * as digifabsterMaterialGroupConfig from "../../api/digifabster-material-group-config.cts";
 import * as digifabsterPlaceOrder from "../../api/digifabster-place-order.cts";
 import * as digifabsterPriceTweak from "../../api/digifabster-price-tweak.cts";
 import * as digifabsterSuitableMaterials from "../../api/digifabster-suitable-materials.cts";
@@ -64,6 +65,7 @@ const ROUTES: Array<{ pattern: string; mod: RouteModule }> = [
   { pattern: "/api/digifabster-part-data", mod: digifabsterPartData },
   { pattern: "/api/digifabster-part-data-admin", mod: digifabsterPartDataAdmin },
   { pattern: "/api/digifabster-part-data-config", mod: digifabsterPartDataConfig },
+  { pattern: "/api/digifabster-material-group-config", mod: digifabsterMaterialGroupConfig },
   { pattern: "/api/digifabster-place-order", mod: digifabsterPlaceOrder },
   { pattern: "/api/digifabster-price-tweak", mod: digifabsterPriceTweak },
   { pattern: "/api/digifabster-suitable-materials", mod: digifabsterSuitableMaterials },

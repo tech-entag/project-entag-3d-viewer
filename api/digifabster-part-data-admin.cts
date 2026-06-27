@@ -18,7 +18,7 @@ const FIELD_LABELS: Record<string, string> = {
   dimUnits: "dimUnits — mm / cm / in",
   materialId: "materialId — resolved material id",
   materialSource: "materialSource — request | preselection",
-  materialGroup: "materialGroup — material family, e.g. Steel / Aluminium",
+  materialGroup: "materialGroup — material family (manual map below), e.g. Steel",
   materialName: "materialName — grade, e.g. St37 / S235JR / 1.0570",
   requestedPrice: "requestedPrice — price × multiplier",
   priceStatus: "priceStatus — priced | analysing",
@@ -102,6 +102,21 @@ const PAGE = `<!doctype html>
   </div>
 
   <div class="card">
+    <h2>Material group mapping</h2>
+    <p class="sub" style="margin:0 0 12px;">Maps <code>materialId</code> → group family for the
+    <code>materialGroup</code> field (e.g. <code>{ "72460": "Aluminium" }</code>). DigiFabster's
+    catalog doesn't carry the family, so it's maintained here. Edit the JSON below.</p>
+    <textarea id="groups" rows="8" style="width:100%; background:#0f1115; border:1px solid #2a3140;
+      color:#e7e9ee; border-radius:8px; padding:12px; font-size:13px; font-family:ui-monospace, monospace;"
+      spellcheck="false"></textarea>
+    <div class="actions" style="margin-top:12px;">
+      <button id="saveGroups" disabled>Save mapping</button>
+      <button id="reloadGroups" class="secondary">Reload</button>
+      <span id="groupsStatus" class="status"></span>
+    </div>
+  </div>
+
+  <div class="card">
     <h2>Test the endpoint</h2>
     <div class="actions">
       <input id="modelId" type="text" placeholder="objectModelId, e.g. 4392012" style="flex:1;" />
@@ -113,12 +128,14 @@ const PAGE = `<!doctype html>
 
 <script>
 const CONFIG_URL = "/api/digifabster-part-data-config";
+const GROUPS_URL = "/api/digifabster-material-group-config";
 const DATA_URL = "/api/digifabster-part-data";
 const LABELS = __LABELS__;
 let available = [];
 
 const el = (id) => document.getElementById(id);
 const setStatus = (msg, cls) => { const s = el("saveStatus"); s.textContent = msg; s.className = "status " + (cls || ""); };
+const setGroupsStatus = (msg, cls) => { const s = el("groupsStatus"); s.textContent = msg; s.className = "status " + (cls || ""); };
 
 async function load() {
   setStatus("");
@@ -168,6 +185,47 @@ async function save() {
   }
 }
 
+async function loadGroups() {
+  setGroupsStatus("");
+  el("saveGroups").disabled = true;
+  el("groups").value = "Loading…";
+  try {
+    const r = await fetch(GROUPS_URL);
+    const cfg = await r.json();
+    el("groups").value = JSON.stringify(cfg.groups || {}, null, 2);
+    el("saveGroups").disabled = false;
+  } catch (e) {
+    el("groups").value = "";
+    setGroupsStatus("Failed to load mapping.", "err");
+  }
+}
+
+async function saveGroups() {
+  let parsed;
+  try {
+    parsed = JSON.parse(el("groups").value || "{}");
+  } catch (e) {
+    setGroupsStatus("Invalid JSON.", "err");
+    return;
+  }
+  el("saveGroups").disabled = true;
+  setGroupsStatus("Saving…");
+  try {
+    const r = await fetch(GROUPS_URL, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ groups: parsed }) });
+    const data = await r.json();
+    if (r.ok && data.status === "saved") {
+      el("groups").value = JSON.stringify(data.groups || {}, null, 2); // reflect sanitized result
+      setGroupsStatus("Saved.", "ok");
+    } else {
+      setGroupsStatus(data.warning || data.error || "Not saved.", "err");
+    }
+  } catch (e) {
+    setGroupsStatus("Save failed.", "err");
+  } finally {
+    el("saveGroups").disabled = false;
+  }
+}
+
 async function test() {
   const id = el("modelId").value.trim();
   if (!id) { el("out").textContent = "Enter an objectModelId."; return; }
@@ -183,8 +241,11 @@ async function test() {
 
 el("save").addEventListener("click", save);
 el("reload").addEventListener("click", load);
+el("saveGroups").addEventListener("click", saveGroups);
+el("reloadGroups").addEventListener("click", loadGroups);
 el("test").addEventListener("click", test);
 load();
+loadGroups();
 </script>
 </body>
 </html>`;

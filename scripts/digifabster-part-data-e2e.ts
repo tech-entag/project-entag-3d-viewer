@@ -25,12 +25,18 @@ interface Captured {
   catalogCalls: number;
 }
 
-/** Minimal in-memory R2 stub so we can exercise the field-toggle config. */
-const fakeR2 = (configJson: unknown) => ({
-  get: async (key: string) =>
-    key === "config/part-data-fields.json"
-      ? { text: async () => JSON.stringify(configJson), arrayBuffer: async () => new ArrayBuffer(0) }
-      : null,
+const blob = (value: unknown) => ({
+  text: async () => JSON.stringify(value),
+  arrayBuffer: async () => new ArrayBuffer(0),
+});
+
+/** Minimal in-memory R2 stub: serves the field-toggle config + material-group map. */
+const fakeR2 = (fieldsConfig?: unknown, groups?: Record<string, string>) => ({
+  get: async (key: string) => {
+    if (key === "config/part-data-fields.json" && fieldsConfig !== undefined) return blob(fieldsConfig);
+    if (key === "config/material-groups.json" && groups !== undefined) return blob({ groups });
+    return null;
+  },
   put: async () => undefined,
   list: async () => ({ objects: [] as Array<{ key: string }> }),
   delete: async () => undefined,
@@ -164,6 +170,10 @@ const run = async () => {
     assert.equal(typeof GET, "function", "must export GET");
 
     console.log("[suite] GET /api/digifabster-part-data");
+    // Default fields (all on) + a manual material-group mapping in R2.
+    (globalThis as { __ENTAG_R2__?: unknown }).__ENTAG_R2__ = fakeR2(undefined, {
+      [String(MATERIAL_ID)]: "Steel",
+    });
     const res = await GET(
       new Request(`${base}/api/digifabster-part-data?objectModelId=${MODEL_ID}&part_id=op-1&priceMultiplier=1.54`, {
         method: "GET",
@@ -184,10 +194,10 @@ const run = async () => {
     // material + price (reused from batch-price; multiplier applied)
     assert.equal(data.materialId, MATERIAL_ID, "materialId resolved (preselection)");
     assert.equal(data.materialSource, "preselection", "materialSource surfaced");
-    // materialId translated via the widget-technologies catalog.
-    assert.equal(data.materialGroup, "Steel", "materialGroup = technology title");
-    assert.equal(data.materialName, "St37 / S235JR / 1.0570", "materialName = material title");
-    assert.ok(captured.catalogCalls >= 1, "catalog fetched for material translation");
+    // materialId translated: group from the manual R2 map, name from the catalog.
+    assert.equal(data.materialGroup, "Steel", "materialGroup = manual R2 mapping");
+    assert.equal(data.materialName, "St37 / S235JR / 1.0570", "materialName = catalog title");
+    assert.ok(captured.catalogCalls >= 1, "catalog fetched for material name");
     assert.equal(data.requestedPrice, 84.7, "requestedPrice = 55 * 1.54");
     assert.equal(data.priceStatus, "priced", "priceStatus surfaced");
     assert.equal(data.shouldRetry, false, "shouldRetry false when priced");
